@@ -18,11 +18,12 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
                   io_repo TYPE REF TO zcl_abapgit_repo_online
                   iv_seed TYPE string OPTIONAL
         RAISING   zcx_abapgit_exception,
-      zif_abapgit_gui_page~on_event REDEFINITION.
+      zif_abapgit_gui_event_handler~on_event REDEFINITION.
 
   PROTECTED SECTION.
     METHODS:
       render_content REDEFINITION,
+      get_events     REDEFINITION,
       scripts        REDEFINITION.
 
   PRIVATE SECTION.
@@ -83,8 +84,11 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
     METHODS get_page_patch
       IMPORTING iv_getdata     TYPE clike
                 iv_prev_page   TYPE clike
-      RETURNING VALUE(ri_page) TYPE REF TO zif_abapgit_gui_page
+      RETURNING VALUE(ri_page) TYPE REF TO zif_abapgit_gui_renderable
       RAISING   zcx_abapgit_exception.
+    METHODS render_master_language_warning
+      RETURNING VALUE(ro_html) TYPE REF TO zcl_abapgit_html.
+
 ENDCLASS.
 
 
@@ -147,7 +151,6 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
 
   ENDMETHOD.
 
-
   METHOD find_transports.
     DATA: li_cts_api TYPE REF TO zif_abapgit_cts_api,
           ls_new     LIKE LINE OF rt_transports.
@@ -183,6 +186,17 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
       CATCH zcx_abapgit_exception.
         ASSERT 1 = 2.
     ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD get_events.
+
+    FIELD-SYMBOLS: <ls_event> TYPE zcl_abapgit_gui_page=>ty_event.
+
+    APPEND INITIAL LINE TO rt_events ASSIGNING <ls_event>.
+    <ls_event>-method = 'post'.
+    <ls_event>-name = 'stage_commit'.
+
   ENDMETHOD.
 
 
@@ -241,16 +255,20 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
           READ TABLE ms_files-local ASSIGNING <ls_file>
             WITH KEY file-path     = ls_file-path
                      file-filename = ls_file-filename.
-          ASSERT sy-subrc = 0.
-          io_stage->add(    iv_path     = <ls_file>-file-path
-                            iv_filename = <ls_file>-file-filename
-                            iv_data     = <ls_file>-file-data ).
+
+          IF sy-subrc <> 0.
+            zcx_abapgit_exception=>raise( |process_stage_list: unknown file { ls_file-path }{ ls_file-filename }| ).
+          ENDIF.
+
+          io_stage->add( iv_path     = <ls_file>-file-path
+                         iv_filename = <ls_file>-file-filename
+                         iv_data     = <ls_file>-file-data ).
         WHEN zcl_abapgit_stage=>c_method-ignore.
           io_stage->ignore( iv_path     = ls_file-path
                             iv_filename = ls_file-filename ).
         WHEN zcl_abapgit_stage=>c_method-rm.
-          io_stage->rm(     iv_path     = ls_file-path
-                            iv_filename = ls_file-filename ).
+          io_stage->rm( iv_path     = ls_file-path
+                        iv_filename = ls_file-filename ).
         WHEN zcl_abapgit_stage=>c_method-skip.
           " Do nothing
         WHEN OTHERS.
@@ -280,11 +298,11 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
     " Action buttons
     ro_html->add( '<td class="indent5em">' ).
     ro_html->add_a( iv_act   = 'errorStub(event)' " Will be reinit by JS
-                    iv_typ   = zif_abapgit_definitions=>c_action_type-onclick
+                    iv_typ   = zif_abapgit_html=>c_action_type-onclick
                     iv_id    = 'commitButton'
                     iv_style = 'display: none'
                     iv_txt   = 'Commit (<span id="fileCounter"></span>)'
-                    iv_opt   = zif_abapgit_definitions=>c_html_opt-strong ) ##NO_TEXT.
+                    iv_opt   = zif_abapgit_html=>c_html_opt-strong ) ##NO_TEXT.
     ro_html->add_a( iv_act = |{ c_action-stage_all }|
                     iv_id  = 'commitAllButton'
                     iv_txt = lv_add_all_txt ) ##NO_TEXT.
@@ -321,6 +339,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
     ro_html->add( '<div class="repo">' ).
     ro_html->add( zcl_abapgit_gui_chunk_lib=>render_repo_top( mo_repo ) ).
     ro_html->add( zcl_abapgit_gui_chunk_lib=>render_js_error_banner( ) ).
+    ro_html->add( render_master_language_warning( ) ).
 
     ro_html->add( '<div class="stage-container">' ).
     ro_html->add( render_actions( ) ).
@@ -438,7 +457,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
       AT FIRST.
         ro_html->add( '<thead><tr class="remote">' ).
         ro_html->add( '<th></th>' ). " Type
-        ro_html->add( '<th colspan="2">Files to remove or non-code</th>' ).
+        ro_html->add( '<th colspan="3">Files to remove or non-code</th>' ).
         ro_html->add( '<th></th>' ). " Status
         ro_html->add( '<th class="cmd">' ).
         ro_html->add( '<a>ignore</a>&#x2193; <a>remove</a>&#x2193; <a>reset</a>&#x2193;' ).
@@ -483,19 +502,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_gui_page_hotkey~get_hotkey_actions.
-
-    DATA: ls_hotkey_action TYPE zif_abapgit_gui_page_hotkey=>ty_hotkey_action.
-
-    ls_hotkey_action-name           = |Stage: Patch|.
-    ls_hotkey_action-action         = zif_abapgit_definitions=>c_action-go_patch.
-    ls_hotkey_action-default_hotkey = |p|.
-    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_gui_page~on_event.
+  METHOD zif_abapgit_gui_event_handler~on_event.
 
     DATA: lo_stage  TYPE REF TO zcl_abapgit_stage,
           lv_string TYPE string,
@@ -521,9 +528,9 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
           EXPORTING
             io_repo  = mo_repo
             io_stage = lo_stage.
-        ev_state = zif_abapgit_definitions=>c_event_state-new_page.
+        ev_state = zcl_abapgit_gui=>c_event_state-new_page.
 
-        ev_state = zif_abapgit_definitions=>c_event_state-new_page.
+        ev_state = zcl_abapgit_gui=>c_event_state-new_page.
 
       WHEN c_action-stage_commit.
 
@@ -533,7 +540,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
           EXPORTING
             io_repo  = mo_repo
             io_stage = lo_stage.
-        ev_state = zif_abapgit_definitions=>c_event_state-new_page.
+        ev_state = zcl_abapgit_gui=>c_event_state-new_page.
 
       WHEN c_action-stage_filter.
 
@@ -545,18 +552,56 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
                                                             it_field = lt_fields
                                                   CHANGING  cg_field = mv_filter_value ).
 
-        ev_state = zif_abapgit_definitions=>c_event_state-no_more_act.
+        ev_state = zcl_abapgit_gui=>c_event_state-no_more_act.
 
       WHEN zif_abapgit_definitions=>c_action-go_patch.                         " Go Patch page
 
         ei_page  = get_page_patch(
           iv_getdata   = iv_getdata
           iv_prev_page = iv_prev_page ).
-        ev_state = zif_abapgit_definitions=>c_event_state-new_page.
+        ev_state = zcl_abapgit_gui=>c_event_state-new_page.
 
       WHEN OTHERS.
-        RETURN.
+        super->zif_abapgit_gui_event_handler~on_event(
+          EXPORTING
+            iv_action    = iv_action
+            iv_prev_page = iv_prev_page
+            iv_getdata   = iv_getdata
+            it_postdata  = it_postdata
+          IMPORTING
+            ei_page      = ei_page
+            ev_state     = ev_state ).
     ENDCASE.
 
   ENDMETHOD.
+
+
+  METHOD zif_abapgit_gui_page_hotkey~get_hotkey_actions.
+
+    DATA: ls_hotkey_action TYPE zif_abapgit_gui_page_hotkey=>ty_hotkey_with_name.
+
+    ls_hotkey_action-name   = |Patch|.
+    ls_hotkey_action-action = zif_abapgit_definitions=>c_action-go_patch.
+    ls_hotkey_action-hotkey = |p|.
+    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+
+  ENDMETHOD.
+
+
+  METHOD render_master_language_warning.
+
+    DATA: ls_dot_abapgit TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit.
+
+    CREATE OBJECT ro_html.
+
+    ls_dot_abapgit = mo_repo->get_dot_abapgit( )->get_data( ).
+
+    IF ls_dot_abapgit-master_language <> sy-langu.
+      ro_html->add( zcl_abapgit_gui_chunk_lib=>render_warning_banner(
+                        |Caution: Master language of the repo is '{ ls_dot_abapgit-master_language }', |
+                     && |but you're logged on in '{ sy-langu }'| ) ).
+    ENDIF.
+
+  ENDMETHOD.
+
 ENDCLASS.

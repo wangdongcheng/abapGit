@@ -15,8 +15,8 @@ CLASS zcl_abapgit_gui_page_merge_res DEFINITION
       RAISING
         zcx_abapgit_exception.
 
-    METHODS zif_abapgit_gui_page~on_event
-        REDEFINITION .
+    METHODS zif_abapgit_gui_event_handler~on_event
+         REDEFINITION .
   PROTECTED SECTION.
     METHODS render_content REDEFINITION.
 
@@ -51,7 +51,7 @@ CLASS zcl_abapgit_gui_page_merge_res DEFINITION
     DATA mo_merge_page TYPE REF TO zcl_abapgit_gui_page_merge .
     DATA mo_repo TYPE REF TO zcl_abapgit_repo_online .
     DATA ms_diff_file TYPE ty_file_diff .
-    DATA mv_current_conflict_index TYPE sytabix .
+    DATA mv_current_conflict_index TYPE sy-tabix .
     DATA mv_merge_mode TYPE string .
     DATA mt_conflicts TYPE zif_abapgit_definitions=>tt_merge_conflict .
 
@@ -62,7 +62,7 @@ CLASS zcl_abapgit_gui_page_merge_res DEFINITION
         zcx_abapgit_exception .
     METHODS build_menu
       IMPORTING
-        VALUE(iv_with_conflict) TYPE boolean OPTIONAL
+        VALUE(iv_with_conflict) TYPE abap_bool OPTIONAL
       RETURNING
         VALUE(ro_menu)          TYPE REF TO zcl_abapgit_html_toolbar .
     METHODS is_binary
@@ -220,12 +220,14 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
 
   METHOD render_beacon.
 
-    DATA: lv_beacon  TYPE string.
+    DATA: lv_beacon  TYPE string,
+          lt_beacons TYPE zif_abapgit_definitions=>ty_string_tt.
 
     CREATE OBJECT ro_html.
 
     IF is_diff_line-beacon > 0.
-      READ TABLE is_diff-o_diff->mt_beacons INTO lv_beacon INDEX is_diff_line-beacon.
+      lt_beacons = is_diff-o_diff->get_beacons( ).
+      READ TABLE lt_beacons INTO lv_beacon INDEX is_diff_line-beacon.
     ELSE.
       lv_beacon = '---'.
     ENDIF.
@@ -273,7 +275,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
     " Content
     IF is_diff-type <> 'binary'.
 
-      IF mv_merge_mode EQ c_merge_mode-selection.
+      IF mv_merge_mode = c_merge_mode-selection.
         ro_html->add( '<div class="diff_content">' ).       "#EC NOTEXT
         ro_html->add( '<table class="diff_tab syntax-hl">' ). "#EC NOTEXT
         ro_html->add( render_table_head( ) ).
@@ -284,15 +286,15 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
 
         "Table for Div-Table and textarea
         ro_html->add( '<div class="diff_content">' ).       "#EC NOTEXT
-        ro_html->add( '<table class="w100">' ).                          "#EC NOTEXT
+        ro_html->add( '<table class="w100">' ).             "#EC NOTEXT
         ro_html->add( '<thead class="header">' ).           "#EC NOTEXT
         ro_html->add( '<tr>' ).                             "#EC NOTEXT
         ro_html->add( '<th>Code</th>' ).                    "#EC NOTEXT
         ro_html->add( '<th>Merge - ' ).                     "#EC NOTEXT
         ro_html->add_a( iv_act = 'submitFormById(''merge_form'');' "#EC NOTEXT
                         iv_txt = 'Apply'
-                        iv_typ = zif_abapgit_definitions=>c_action_type-onclick
-                        iv_opt = zif_abapgit_definitions=>c_html_opt-strong ).
+                        iv_typ = zif_abapgit_html=>c_action_type-onclick
+                        iv_opt = zif_abapgit_html=>c_html_opt-strong ).
         ro_html->add( '</th> ' ).                           "#EC NOTEXT
         ro_html->add( '</tr>' ).                            "#EC NOTEXT
         ro_html->add( '</thead>' ).                         "#EC NOTEXT
@@ -305,7 +307,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
         ro_html->add( '</table>' ).                         "#EC NOTEXT
 
         READ TABLE mt_conflicts ASSIGNING <ls_conflict> INDEX mv_current_conflict_index.
-        IF sy-subrc EQ 0.
+        IF sy-subrc = 0.
           lv_target_content = zcl_abapgit_convert=>xstring_to_string_utf8( <ls_conflict>-target_data ).
           lv_target_content = escape( val = lv_target_content format = cl_abap_format=>e_html_text ).
         ENDIF.
@@ -446,39 +448,37 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
   METHOD render_table_head.
 
     CREATE OBJECT ro_html.
-    IF mv_merge_mode EQ c_merge_mode-selection.
-      ro_html->add( '<thead class="header">' ).             "#EC NOTEXT
-      ro_html->add( '<tr>' ).                               "#EC NOTEXT
-      ro_html->add( '<th class="num"></th>' ).              "#EC NOTEXT
+
+    ro_html->add( '<thead class="header">' ).               "#EC NOTEXT
+    ro_html->add( '<tr>' ).                                 "#EC NOTEXT
+    ro_html->add( '<th class="num"></th>' ).                "#EC NOTEXT
+
+    IF mv_merge_mode = c_merge_mode-selection.
       ro_html->add( '<form id="target_form" method="post" action="sapevent:apply_target">' ). "#EC NOTEXT
       ro_html->add( '<th>Target - ' && mo_repo->get_branch_name( ) && ' - ' ). "#EC NOTEXT
       ro_html->add_a( iv_act = 'submitFormById(''target_form'');' "#EC NOTEXT
                       iv_txt = 'Apply'
-                      iv_typ = zif_abapgit_definitions=>c_action_type-onclick
-                      iv_opt = zif_abapgit_definitions=>c_html_opt-strong ).
+                      iv_typ = zif_abapgit_html=>c_action_type-onclick
+                      iv_opt = zif_abapgit_html=>c_html_opt-strong ).
       ro_html->add( '</th> ' ).                             "#EC NOTEXT
       ro_html->add( '</form>' ).                            "#EC NOTEXT
       ro_html->add( '<th class="num"></th>' ).              "#EC NOTEXT
       ro_html->add( '<form id="source_form" method="post" action="sapevent:apply_source">' ). "#EC NOTEXT
-      ro_html->add( '<th>Source  - ' && mo_merge->get_source_branch( ) &&' - ' ). "#EC NOTEXT
+      ro_html->add( '<th>Source  - ' && mo_merge->get_source_branch( ) && ' - ' ). "#EC NOTEXT
       ro_html->add_a( iv_act = 'submitFormById(''source_form'');' "#EC NOTEXT
                       iv_txt = 'Apply'
-                      iv_typ = zif_abapgit_definitions=>c_action_type-onclick
-                      iv_opt = zif_abapgit_definitions=>c_html_opt-strong ).
+                      iv_typ = zif_abapgit_html=>c_action_type-onclick
+                      iv_opt = zif_abapgit_html=>c_html_opt-strong ).
       ro_html->add( '</th> ' ).                             "#EC NOTEXT
       ro_html->add( '</form>' ).                            "#EC NOTEXT
-      ro_html->add( '</tr>' ).                              "#EC NOTEXT
-      ro_html->add( '</thead>' ).                           "#EC NOTEXT
     ELSE.
-      ro_html->add( '<thead class="header">' ).             "#EC NOTEXT
-      ro_html->add( '<tr>' ).                               "#EC NOTEXT
+      ro_html->add( '<th>Target - ' && mo_repo->get_branch_name( ) && '</th> ' ). "#EC NOTEXT
       ro_html->add( '<th class="num"></th>' ).              "#EC NOTEXT
-      ro_html->add( '<th>Target - ' && mo_repo->get_branch_name( ) &&'</th> ' ). "#EC NOTEXT
-      ro_html->add( '<th class="num"></th>' ).              "#EC NOTEXT
-      ro_html->add( '<th>Source - ' && mo_merge->get_source_branch( ) &&'</th> ' ). "#EC NOTEXT
-      ro_html->add( '</tr>' ).                              "#EC NOTEXT
-      ro_html->add( '</thead>' ).                           "#EC NOTEXT
+      ro_html->add( '<th>Source - ' && mo_merge->get_source_branch( ) && '</th> ' ). "#EC NOTEXT
     ENDIF.
+
+    ro_html->add( '</tr>' ).                                "#EC NOTEXT
+    ro_html->add( '</thead>' ).                             "#EC NOTEXT
 
   ENDMETHOD.
 
@@ -491,7 +491,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
     CLEAR ms_diff_file.
 
     READ TABLE mt_conflicts ASSIGNING <ls_conflict> INDEX mv_current_conflict_index.
-    IF sy-subrc NE 0.
+    IF sy-subrc <> 0.
       RETURN.
     ENDIF.
 
@@ -522,7 +522,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
 
   METHOD toggle_merge_mode.
 
-    IF mv_merge_mode EQ c_merge_mode-selection.
+    IF mv_merge_mode = c_merge_mode-selection.
       mv_merge_mode = c_merge_mode-merge.
     ELSE.
       mv_merge_mode = c_merge_mode-selection.
@@ -531,12 +531,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_gui_page_hotkey~get_hotkey_actions.
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_gui_page~on_event.
+  METHOD zif_abapgit_gui_event_handler~on_event.
 
     FIELD-SYMBOLS: <ls_conflict> TYPE zif_abapgit_definitions=>ty_merge_conflict.
 
@@ -570,17 +565,22 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_RES IMPLEMENTATION.
         ENDIF.
 
         IF mv_current_conflict_index IS NOT INITIAL.
-          ev_state = zif_abapgit_definitions=>c_event_state-re_render.
+          ev_state = zcl_abapgit_gui=>c_event_state-re_render.
         ELSE.
           ei_page = mo_merge_page.
-          ev_state = zif_abapgit_definitions=>c_event_state-go_back.
+          ev_state = zcl_abapgit_gui=>c_event_state-go_back.
         ENDIF.
 
       WHEN c_actions-toggle_mode.
         toggle_merge_mode( ).
-        ev_state = zif_abapgit_definitions=>c_event_state-re_render.
+        ev_state = zcl_abapgit_gui=>c_event_state-re_render.
 
     ENDCASE.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_gui_page_hotkey~get_hotkey_actions.
 
   ENDMETHOD.
 ENDCLASS.

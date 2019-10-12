@@ -1,7 +1,7 @@
 CLASS ltcl_xml_output DEFINITION DEFERRED.
 CLASS zcl_abapgit_xml_output DEFINITION LOCAL FRIENDS ltcl_xml_output.
 
-CLASS ltcl_xml_output DEFINITION FOR TESTING  DURATION SHORT RISK LEVEL HARMLESS.
+CLASS ltcl_xml_output DEFINITION FOR TESTING DURATION SHORT RISK LEVEL HARMLESS.
 
   PUBLIC SECTION.
     METHODS:
@@ -14,12 +14,6 @@ CLASS ltcl_xml_output DEFINITION FOR TESTING  DURATION SHORT RISK LEVEL HARMLESS
              foo TYPE i,
              bar TYPE c LENGTH 1,
            END OF st_old.
-
-    TYPES: BEGIN OF st_new,
-             foo TYPE i,
-             bar TYPE c LENGTH 1,
-             moo TYPE f,
-           END OF st_new.
 
 ENDCLASS.
 CLASS ltcl_xml_output IMPLEMENTATION.

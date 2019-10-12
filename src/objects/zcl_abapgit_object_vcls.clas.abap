@@ -3,25 +3,50 @@ CLASS zcl_abapgit_object_vcls DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
 
+  PROTECTED SECTION.
   PRIVATE SECTION.
-* See include MTOBJCON:
-    CONSTANTS: c_cluster_type TYPE c VALUE 'C'.
-    CONSTANTS: c_mode_insert  TYPE obj_para-maint_mode VALUE 'I'.
 
+* See include MTOBJCON:
+    CONSTANTS c_cluster_type TYPE c VALUE 'C' ##NO_TEXT.
+    CONSTANTS c_mode_insert TYPE obj_para-maint_mode VALUE 'I' ##NO_TEXT.
+
+    METHODS check_lock
+      IMPORTING
+        !iv_tabname         TYPE tabname
+        !iv_argument        TYPE seqg3-garg
+      RETURNING
+        VALUE(rv_is_locked) TYPE abap_bool
+      RAISING
+        zcx_abapgit_exception .
 ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_vcls IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_VCLS IMPLEMENTATION.
+
+
+  METHOD check_lock.
+
+    DATA:
+      ls_rstable_key TYPE rstable, " Lock argument for table RSTABLE
+      lv_argument    TYPE eqegraarg.
+
+    " Set Values for generic table lock
+    ls_rstable_key-tabname = iv_tabname.
+    ls_rstable_key-varkey  = iv_argument.
+
+    " include all sub keys
+    lv_argument = ls_rstable_key.
+    lv_argument = lv_argument && '*'.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object         = 'E_TABLEE'
+                                            iv_argument            = lv_argument ).
+
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~changed_by.
     rv_user = c_user_unknown. " todo
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
 
@@ -61,6 +86,7 @@ CLASS zcl_abapgit_object_vcls IMPLEMENTATION.
                   CHANGING cg_data = lt_vclmf ).
 
     ls_vcldir_entry-author = sy-uname.
+    ls_vcldir_entry-changedate = sy-datum.
 
     CALL FUNCTION 'VIEWCLUSTER_SAVE_DEFINITION'
       EXPORTING
@@ -78,6 +104,7 @@ CLASS zcl_abapgit_object_vcls IMPLEMENTATION.
         master_language     = mv_language
         mode                = 'INSERT'
         global_lock         = abap_true
+        suppress_dialog     = abap_true
       EXCEPTIONS
         cancelled           = 1
         permission_failure  = 2
@@ -119,11 +146,16 @@ CLASS zcl_abapgit_object_vcls IMPLEMENTATION.
 
     rv_bool = boolc( sy-subrc = 0 ).
 
-    IF lv_changedate IS INITIAL.
-* same logic as in function module VIEWCLUSTER_GET_DEFINITION
-      rv_bool = abap_false.
-    ENDIF.
+  ENDMETHOD.
 
+
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
   ENDMETHOD.
 
 
@@ -133,14 +165,42 @@ CLASS zcl_abapgit_object_vcls IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~is_active.
+
+    DATA lv_changedate TYPE vcldir-changedate.
+
+    SELECT SINGLE changedate INTO lv_changedate FROM vcldir
+      WHERE vclname = ms_item-obj_name.
+
+    IF lv_changedate IS NOT INITIAL.
+* see logic in function module VIEWCLUSTER_GET_DEFINITION
+      rv_active = abap_true.
+    ELSE.
+      rv_active = abap_false.
+    ENDIF.
+
   ENDMETHOD.
 
 
   METHOD zif_abapgit_object~is_locked.
 
-    rv_is_locked = abap_false.
+    DATA:
+      lv_argument       TYPE seqg3-garg,
+      lv_argument_langu TYPE seqg3-garg.
+
+    lv_argument       = me->ms_item-obj_name.
+    lv_argument_langu = |@{ me->ms_item-obj_name }|.
+
+    "Check all relevant maintein tabeles for view clusters
+    IF check_lock( iv_tabname = 'VCLDIR'    iv_argument = lv_argument ) = abap_true
+        OR check_lock( iv_tabname = 'VCLDIRT'   iv_argument = lv_argument_langu ) = abap_true
+        OR check_lock( iv_tabname = 'VCLSTRUC'  iv_argument = lv_argument )       = abap_true
+        OR check_lock( iv_tabname = 'VCLSTRUCT' iv_argument = lv_argument_langu ) = abap_true
+        OR check_lock( iv_tabname = 'VCLSTRUC'  iv_argument = lv_argument )       = abap_true
+        OR check_lock( iv_tabname = 'VCLMF'     iv_argument = lv_argument )       = abap_true.
+
+      rv_is_locked = abap_true.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -235,7 +295,10 @@ CLASS zcl_abapgit_object_vcls IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'error in VIEWCLUSTER_GET_DEFINITION' ).
     ENDIF.
 
+    SORT lt_vclstrudep BY vclname object objfield.
+
     CLEAR ls_vcldir_entry-author.
+    CLEAR ls_vcldir_entry-changedate.
 
     io_xml->add( iv_name = 'VCLDIR'
                  ig_data = ls_vcldir_entry ).
@@ -246,10 +309,5 @@ CLASS zcl_abapgit_object_vcls IMPLEMENTATION.
     io_xml->add( iv_name = 'VCLMF_TAB'
                  ig_data = lt_vclmf ).
 
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~is_active.
-    rv_active = is_active( ).
   ENDMETHOD.
 ENDCLASS.

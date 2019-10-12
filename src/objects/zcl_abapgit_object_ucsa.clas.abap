@@ -3,7 +3,14 @@ CLASS zcl_abapgit_object_ucsa DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
 
+  PROTECTED SECTION.
   PRIVATE SECTION.
+    CONSTANTS:
+    BEGIN OF c_version,
+      active   TYPE r3state VALUE 'A',
+      inactive TYPE r3state VALUE 'I',
+    END OF c_version .
+
     TYPES:
       ty_id TYPE c LENGTH 30.
 
@@ -28,7 +35,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_UCSA IMPLEMENTATION.
 
 
   METHOD clear_dynamic_fields.
@@ -97,13 +104,6 @@ CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~compare_to_remote_version.
-
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
-
-  ENDMETHOD.
-
-
   METHOD zif_abapgit_object~delete.
 
     DATA: lv_id          TYPE ty_id,
@@ -118,7 +118,7 @@ CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
 
         CALL METHOD lo_persistence->('IF_UCON_SA_PERSIST~DELETE')
           EXPORTING
-            version = zif_abapgit_definitions=>c_version-active.
+            version = c_version-active.
 
       CATCH cx_root INTO lx_root.
         lv_text = lx_root->get_text( ).
@@ -158,7 +158,7 @@ CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
         CALL METHOD lo_persistence->('IF_UCON_SA_PERSIST~SAVE')
           EXPORTING
             sa      = <lg_complete_comm_assembly>
-            version = zif_abapgit_definitions=>c_version-active.
+            version = c_version-active.
 
         tadir_insert( iv_package ).
 
@@ -186,7 +186,7 @@ CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
 
         CALL METHOD lo_persistence->('IF_UCON_SA_PERSIST~LOAD')
           EXPORTING
-            version  = zif_abapgit_definitions=>c_version-active
+            version  = c_version-active
             language = sy-langu.
 
       CATCH cx_root.
@@ -199,6 +199,16 @@ CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_object~get_metadata.
 
     rs_metadata = get_metadata( ).
@@ -207,10 +217,13 @@ CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
+  METHOD zif_abapgit_object~is_active.
+    rv_active = is_active( ).
+  ENDMETHOD.
 
-    rv_changed = abap_true.
 
+  METHOD zif_abapgit_object~is_locked.
+    rv_is_locked = abap_false.
   ENDMETHOD.
 
 
@@ -256,7 +269,7 @@ CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
 
         CALL METHOD lo_persistence->('IF_UCON_SA_PERSIST~LOAD')
           EXPORTING
-            version  = zif_abapgit_definitions=>c_version-active
+            version  = c_version-active
             language = sy-langu
           IMPORTING
             sa       = <lg_complete_comm_assembly>.
@@ -271,14 +284,5 @@ CLASS zcl_abapgit_object_ucsa IMPLEMENTATION.
         zcx_abapgit_exception=>raise( lv_text ).
     ENDTRY.
 
-  ENDMETHOD.
-
-  METHOD zif_abapgit_object~is_locked.
-    rv_is_locked = abap_false.
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~is_active.
-    rv_active = is_active( ).
   ENDMETHOD.
 ENDCLASS.

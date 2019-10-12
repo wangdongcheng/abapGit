@@ -7,6 +7,7 @@ CLASS zcl_abapgit_object_auth DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
       IMPORTING
         is_item     TYPE zif_abapgit_definitions=>ty_item
         iv_language TYPE spras.
+  PROTECTED SECTION.
   PRIVATE SECTION.
     DATA: mv_fieldname TYPE authx-fieldname.
 
@@ -14,7 +15,8 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_auth IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_AUTH IMPLEMENTATION.
+
 
   METHOD constructor.
 
@@ -29,11 +31,6 @@ CLASS zcl_abapgit_object_auth IMPLEMENTATION.
   METHOD zif_abapgit_object~changed_by.
 * looks like "changed by user" is not stored in the database
     rv_user = c_user_unknown.
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
 
@@ -119,25 +116,46 @@ CLASS zcl_abapgit_object_auth IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
     rs_metadata-delete_tadir = abap_true.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~is_active.
+    rv_active = is_active( ).
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~is_locked.
+    rv_is_locked = abap_false.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_object~jump.
-
-* TODO, this function module does not exist in 702
-    CALL FUNCTION 'SU20_MAINTAIN_SNGL'
+    CALL FUNCTION 'FUNCTION_EXISTS'
       EXPORTING
-        id_field    = mv_fieldname
-        id_wbo_mode = abap_false.
-
+        funcname           = 'SU20_MAINTAIN_SNGL'
+      EXCEPTIONS
+        function_not_exist = 1
+        OTHERS             = 2.
+    IF sy-subrc = 0.
+      " this function module does not exist in 740
+      CALL FUNCTION 'SU20_MAINTAIN_SNGL'
+        EXPORTING
+          id_field    = mv_fieldname
+          id_wbo_mode = abap_false.
+    ENDIF.
   ENDMETHOD.
 
 
@@ -156,14 +174,4 @@ CLASS zcl_abapgit_object_auth IMPLEMENTATION.
                  ig_data = ls_authx ).
 
   ENDMETHOD.
-
-  METHOD zif_abapgit_object~is_locked.
-    rv_is_locked = abap_false.
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~is_active.
-    rv_active = is_active( ).
-  ENDMETHOD.
-
 ENDCLASS.

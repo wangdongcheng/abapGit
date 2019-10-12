@@ -6,10 +6,13 @@ CLASS zcl_abapgit_repo_srv DEFINITION
   PUBLIC SECTION.
 
     INTERFACES zif_abapgit_repo_srv .
+    INTERFACES zif_abapgit_repo_listener .
 
     CLASS-METHODS get_instance
       RETURNING
         VALUE(ri_srv) TYPE REF TO zif_abapgit_repo_srv .
+
+  PROTECTED SECTION.
   PRIVATE SECTION.
 
     ALIASES delete
@@ -28,26 +31,40 @@ CLASS zcl_abapgit_repo_srv DEFINITION
     METHODS refresh
       RAISING
         zcx_abapgit_exception .
-    METHODS constructor .
     METHODS is_sap_object_allowed
       RETURNING
         VALUE(rv_allowed) TYPE abap_bool .
+    METHODS instantiate_and_add
+      IMPORTING
+        !is_repo_meta  TYPE zif_abapgit_persistence=>ty_repo
+      RETURNING
+        VALUE(ro_repo) TYPE REF TO zcl_abapgit_repo
+      RAISING
+        zcx_abapgit_exception .
     METHODS add
       IMPORTING
         !io_repo TYPE REF TO zcl_abapgit_repo
       RAISING
         zcx_abapgit_exception .
-    METHODS validate_sub_super_packages
+    METHODS reinstantiate_repo
       IMPORTING
-        !iv_package TYPE devclass
-        !it_repos   TYPE zif_abapgit_persistence=>tt_repo
+        !iv_key  TYPE zif_abapgit_persistence=>ty_repo-key
+        !is_meta TYPE zif_abapgit_persistence=>ty_repo_xml
       RAISING
         zcx_abapgit_exception .
+    METHODS validate_sub_super_packages
+      IMPORTING
+        !iv_package    TYPE devclass
+        !it_repos      TYPE zif_abapgit_persistence=>tt_repo
+        !iv_ign_subpkg TYPE abap_bool DEFAULT abap_false
+      RAISING
+        zcx_abapgit_exception .
+
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
+CLASS zcl_abapgit_repo_srv IMPLEMENTATION.
 
 
   METHOD add.
@@ -64,12 +81,8 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
+    io_repo->bind_listener( me ).
     APPEND io_repo TO mt_list.
-
-  ENDMETHOD.
-
-
-  METHOD constructor.
 
   ENDMETHOD.
 
@@ -79,6 +92,22 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
       CREATE OBJECT gi_ref TYPE zcl_abapgit_repo_srv.
     ENDIF.
     ri_srv = gi_ref.
+  ENDMETHOD.
+
+
+  METHOD instantiate_and_add.
+
+    IF is_repo_meta-offline = abap_false.
+      CREATE OBJECT ro_repo TYPE zcl_abapgit_repo_online
+        EXPORTING
+          is_data = is_repo_meta.
+    ELSE.
+      CREATE OBJECT ro_repo TYPE zcl_abapgit_repo_offline
+        EXPORTING
+          is_data = is_repo_meta.
+    ENDIF.
+    add( ro_repo ).
+
   ENDMETHOD.
 
 
@@ -96,9 +125,7 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
 
   METHOD refresh.
 
-    DATA: lt_list    TYPE zif_abapgit_persistence=>tt_repo,
-          lo_online  TYPE REF TO zcl_abapgit_repo_online,
-          lo_offline TYPE REF TO zcl_abapgit_repo_offline.
+    DATA: lt_list TYPE zif_abapgit_persistence=>tt_repo.
 
     FIELD-SYMBOLS: <ls_list> LIKE LINE OF lt_list.
 
@@ -107,20 +134,27 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
 
     lt_list = zcl_abapgit_persist_factory=>get_repo( )->list( ).
     LOOP AT lt_list ASSIGNING <ls_list>.
-      IF <ls_list>-offline = abap_false.
-        CREATE OBJECT lo_online
-          EXPORTING
-            is_data = <ls_list>.
-        APPEND lo_online TO mt_list.
-      ELSE.
-        CREATE OBJECT lo_offline
-          EXPORTING
-            is_data = <ls_list>.
-        APPEND lo_offline TO mt_list.
-      ENDIF.
+      instantiate_and_add( <ls_list> ).
     ENDLOOP.
 
     mv_init = abap_true.
+
+  ENDMETHOD.
+
+
+  METHOD reinstantiate_repo.
+
+    DATA lo_repo      TYPE REF TO zcl_abapgit_repo.
+    DATA ls_full_meta TYPE zif_abapgit_persistence=>ty_repo.
+
+    lo_repo = get( iv_key ).
+    DELETE TABLE mt_list FROM lo_repo.
+    ASSERT sy-subrc IS INITIAL.
+
+    MOVE-CORRESPONDING is_meta TO ls_full_meta.
+    ls_full_meta-key = iv_key.
+
+    instantiate_and_add( ls_full_meta ).
 
   ENDMETHOD.
 
@@ -136,7 +170,7 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
       lo_repo = get( ls_repo-key ).
 
       lo_package = zcl_abapgit_factory=>get_sap_package( ls_repo-package ).
-      IF lo_package->exists( ) EQ abap_false.
+      IF lo_package->exists( ) = abap_false.
         " Skip dangling repository
         CONTINUE.
       ENDIF.
@@ -145,7 +179,10 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
       IF lo_repo->get_local_settings( )-ignore_subpackages = abap_false.
         APPEND LINES OF lo_package->list_subpackages( ) TO lt_packages.
       ENDIF.
-      APPEND LINES OF lo_package->list_superpackages( ) TO lt_packages.
+
+      IF iv_ign_subpkg = abap_false.
+        APPEND LINES OF lo_package->list_superpackages( ) TO lt_packages.
+      ENDIF.
 
       READ TABLE lt_packages TRANSPORTING NO FIELDS
         WITH KEY table_line = iv_package.
@@ -156,9 +193,34 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_repo_listener~on_meta_change.
+
+    DATA li_persistence TYPE REF TO zif_abapgit_persist_repo.
+
+    li_persistence = zcl_abapgit_persist_factory=>get_repo( ).
+    li_persistence->update_metadata(
+      iv_key         = iv_key
+      is_meta        = is_meta
+      is_change_mask = is_change_mask ).
+
+
+    " Recreate repo instance if type changed
+    " Instances in mt_list are of *_online and *_offline type
+    " If type is changed object should be recreated from the proper class
+    " TODO refactor, e.g. unify repo logic in one class
+    IF is_change_mask-offline = abap_true.
+      reinstantiate_repo(
+        iv_key  = iv_key
+        is_meta = is_meta ).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_repo_srv~delete.
 
-    io_repo->delete( ).
+    zcl_abapgit_persist_factory=>get_repo( )->delete( io_repo->get_key( ) ).
 
     DELETE TABLE mt_list FROM io_repo.
     ASSERT sy-subrc = 0.
@@ -169,7 +231,6 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
   METHOD zif_abapgit_repo_srv~get.
 
     FIELD-SYMBOLS: <lo_list> LIKE LINE OF mt_list.
-
 
     IF mv_init = abap_false.
       refresh( ).
@@ -234,18 +295,26 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
 
   METHOD zif_abapgit_repo_srv~new_offline.
 
-    DATA: ls_repo TYPE zif_abapgit_persistence=>ty_repo,
-          lv_key  TYPE zif_abapgit_persistence=>ty_repo-key.
+    DATA: ls_repo        TYPE zif_abapgit_persistence=>ty_repo,
+          lv_key         TYPE zif_abapgit_persistence=>ty_repo-key,
+          lo_dot_abapgit TYPE REF TO zcl_abapgit_dot_abapgit.
 
+
+    IF zcl_abapgit_auth=>is_allowed( zif_abapgit_auth=>gc_authorization-create_repo ) = abap_false.
+      zcx_abapgit_exception=>raise( 'Not authorized' ).
+    ENDIF.
 
     validate_package( iv_package ).
 
+    lo_dot_abapgit = zcl_abapgit_dot_abapgit=>build_default( ).
+    lo_dot_abapgit->set_folder_logic( iv_folder_logic ).
+
     lv_key = zcl_abapgit_persist_factory=>get_repo( )->add(
-      iv_url         = iv_url
-      iv_branch_name = ''
-      iv_package     = iv_package
-      iv_offline     = abap_true
-      is_dot_abapgit = zcl_abapgit_dot_abapgit=>build_default( )->get_data( ) ).
+      iv_url          = iv_url
+      iv_branch_name  = ''
+      iv_package      = iv_package
+      iv_offline      = abap_true
+      is_dot_abapgit  = lo_dot_abapgit->get_data( ) ).
 
     TRY.
         ls_repo = zcl_abapgit_persist_factory=>get_repo( )->read( lv_key ).
@@ -253,45 +322,54 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
         zcx_abapgit_exception=>raise( 'new_offline not found' ).
     ENDTRY.
 
-    CREATE OBJECT ro_repo
-      EXPORTING
-        is_data = ls_repo.
-
-    add( ro_repo ).
+    ro_repo ?= instantiate_and_add( ls_repo ).
 
   ENDMETHOD.
 
 
   METHOD zif_abapgit_repo_srv~new_online.
 
-    DATA: ls_repo TYPE zif_abapgit_persistence=>ty_repo,
-          lv_key  TYPE zif_abapgit_persistence=>ty_repo-key.
+    DATA: ls_repo        TYPE zif_abapgit_persistence=>ty_repo,
+          lv_key         TYPE zif_abapgit_persistence=>ty_repo-key,
+          ls_dot_abapgit TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit.
 
 
     ASSERT NOT iv_url IS INITIAL
       AND NOT iv_branch_name IS INITIAL
       AND NOT iv_package IS INITIAL.
 
-    validate_package( iv_package ).
+    IF zcl_abapgit_auth=>is_allowed( zif_abapgit_auth=>gc_authorization-create_repo ) = abap_false.
+      zcx_abapgit_exception=>raise( 'Not authorized' ).
+    ENDIF.
+
+    validate_package( iv_package = iv_package
+                      iv_ign_subpkg = iv_ign_subpkg ).
+
     zcl_abapgit_url=>validate( |{ iv_url }| ).
 
+    ls_dot_abapgit = zcl_abapgit_dot_abapgit=>build_default( )->get_data( ).
+    ls_dot_abapgit-folder_logic = iv_folder_logic.
+
     lv_key = zcl_abapgit_persist_factory=>get_repo( )->add(
-      iv_url         = iv_url
-      iv_branch_name = iv_branch_name
-      iv_package     = iv_package
-      iv_offline     = abap_false
-      is_dot_abapgit = zcl_abapgit_dot_abapgit=>build_default( )->get_data( ) ).
+      iv_url          = iv_url
+      iv_branch_name  = iv_branch_name
+      iv_display_name = iv_display_name
+      iv_package      = iv_package
+      iv_offline      = abap_false
+      is_dot_abapgit  = ls_dot_abapgit ).
     TRY.
         ls_repo = zcl_abapgit_persist_factory=>get_repo( )->read( lv_key ).
       CATCH zcx_abapgit_not_found.
         zcx_abapgit_exception=>raise( 'new_online not found' ).
     ENDTRY.
 
-    CREATE OBJECT ro_repo
-      EXPORTING
-        is_data = ls_repo.
 
-    add( ro_repo ).
+    ro_repo ?= instantiate_and_add( ls_repo ).
+
+    IF ls_repo-local_settings-ignore_subpackages <> iv_ign_subpkg.
+      ls_repo-local_settings-ignore_subpackages = iv_ign_subpkg.
+      ro_repo->set_local_settings( ls_repo-local_settings ).
+    ENDIF.
 
     ro_repo->refresh( ).
     ro_repo->find_remote_dot_abapgit( ).
@@ -322,42 +400,15 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_repo_srv~switch_repo_type.
-
-* todo, this should be a method on the repo instead?
-
-    DATA lo_repo TYPE REF TO zcl_abapgit_repo.
-
-    FIELD-SYMBOLS <lo_repo> LIKE LINE OF mt_list.
-
-    lo_repo = get( iv_key ).
-    READ TABLE mt_list ASSIGNING <lo_repo> FROM lo_repo.
-    ASSERT sy-subrc IS INITIAL.
-    ASSERT iv_offline <> lo_repo->ms_data-offline.
-
-    IF iv_offline = abap_true. " On-line -> OFFline
-      lo_repo->set(
-        iv_url         = zcl_abapgit_url=>name( lo_repo->ms_data-url )
-        iv_branch_name = ''
-        iv_head_branch = ''
-        iv_offline     = abap_true ).
-      CREATE OBJECT <lo_repo> TYPE zcl_abapgit_repo_offline
-        EXPORTING
-          is_data = lo_repo->ms_data.
-    ELSE. " OFFline -> On-line
-      lo_repo->set( iv_offline = abap_false ).
-      CREATE OBJECT <lo_repo> TYPE zcl_abapgit_repo_online
-        EXPORTING
-          is_data = lo_repo->ms_data.
-    ENDIF.
-
-  ENDMETHOD.
-
-
   METHOD zif_abapgit_repo_srv~validate_package.
 
     DATA: lv_as4user TYPE tdevc-as4user,
-          lt_repos   TYPE zif_abapgit_persistence=>tt_repo.
+          lt_repos   TYPE zif_abapgit_persistence=>tt_repo,
+          lv_name    TYPE zif_abapgit_persistence=>ty_local_settings-display_name,
+          lv_owner   TYPE zif_abapgit_persistence=>ty_local_settings-display_name.
+
+    FIELD-SYMBOLS:
+          <ls_repo>  LIKE LINE OF lt_repos.
 
     IF iv_package IS INITIAL.
       zcx_abapgit_exception=>raise( 'add, package empty' ).
@@ -375,18 +426,21 @@ CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
     ENDIF.
 
     IF is_sap_object_allowed( ) = abap_false AND lv_as4user = 'SAP'.
-      zcx_abapgit_exception=>raise( |Package { iv_package } not allowed| ).
+      zcx_abapgit_exception=>raise( |Package { iv_package } not allowed, responsible user = 'SAP'| ).
     ENDIF.
 
     " make sure its not already in use for a different repository
     lt_repos = zcl_abapgit_persist_factory=>get_repo( )->list( ).
-    READ TABLE lt_repos WITH KEY package = iv_package TRANSPORTING NO FIELDS.
+    READ TABLE lt_repos WITH KEY package = iv_package ASSIGNING <ls_repo>.
     IF sy-subrc = 0.
-      zcx_abapgit_exception=>raise( |Package { iv_package } already in use| ).
+      lv_name = zcl_abapgit_repo_srv=>get_instance( )->get( <ls_repo>-key )->get_name( ).
+      lv_owner = <ls_repo>-created_by.
+      zcx_abapgit_exception=>raise( |Package { iv_package } already versioned as { lv_name } by { lv_owner }| ).
     ENDIF.
 
     validate_sub_super_packages(
-      iv_package = iv_package
-      it_repos   = lt_repos ).
+      iv_package    = iv_package
+      it_repos      = lt_repos
+      iv_ign_subpkg = iv_ign_subpkg ).
   ENDMETHOD.
 ENDCLASS.

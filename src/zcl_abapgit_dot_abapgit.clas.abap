@@ -71,6 +71,7 @@ CLASS zcl_abapgit_dot_abapgit DEFINITION
     METHODS set_requirements
       IMPORTING
         it_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt.
+  PROTECTED SECTION.
   PRIVATE SECTION.
     DATA: ms_data TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit.
 
@@ -87,7 +88,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_dot_abapgit IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_DOT_ABAPGIT IMPLEMENTATION.
 
 
   METHOD add_ignore.
@@ -124,6 +125,9 @@ CLASS zcl_abapgit_dot_abapgit IMPLEMENTATION.
     APPEND '/README.md' TO ls_data-ignore.
     APPEND '/package.json' TO ls_data-ignore.
     APPEND '/.travis.yml' TO ls_data-ignore.
+    APPEND '/.gitlab-ci.yml' TO ls_data-ignore.
+    APPEND '/abaplint.json' TO ls_data-ignore.
+    APPEND '/azure-pipelines.yml' TO ls_data-ignore.
 
     CREATE OBJECT ro_dot_abapgit
       EXPORTING
@@ -189,6 +193,11 @@ CLASS zcl_abapgit_dot_abapgit IMPLEMENTATION.
 
   METHOD get_master_language.
     rv_language = ms_data-master_language.
+  ENDMETHOD.
+
+
+  METHOD get_requirements.
+    rt_requirements = ms_data-requirements.
   ENDMETHOD.
 
 
@@ -265,6 +274,11 @@ CLASS zcl_abapgit_dot_abapgit IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD set_requirements.
+    ms_data-requirements = it_requirements.
+  ENDMETHOD.
+
+
   METHOD set_starting_folder.
     ms_data-starting_folder = iv_path.
   ENDMETHOD.
@@ -285,13 +299,5 @@ CLASS zcl_abapgit_dot_abapgit IMPLEMENTATION.
       WITH '<?xml version="1.0" encoding="utf-8"?>'.
     ASSERT sy-subrc = 0.
 
-  ENDMETHOD.
-
-  METHOD get_requirements.
-    rt_requirements = ms_data-requirements.
-  ENDMETHOD.
-
-  METHOD set_requirements.
-    ms_data-requirements = it_requirements.
   ENDMETHOD.
 ENDCLASS.

@@ -4,29 +4,26 @@ CLASS zcl_abapgit_ecatt_data_downl DEFINITION
   CREATE PUBLIC .
 
   PUBLIC SECTION.
+    INTERFACES:
+      zif_abapgit_ecatt_download.
 
-    METHODS get_xml_stream
-      RETURNING
-        VALUE(rv_xml_stream) TYPE xstring .
-    METHODS get_xml_stream_size
-      RETURNING
-        VALUE(rv_xml_stream_size) TYPE int4 .
+    METHODS:
+      download
+        REDEFINITION.
 
-    METHODS download
-        REDEFINITION .
   PROTECTED SECTION.
     METHODS:
       download_data REDEFINITION.
 
   PRIVATE SECTION.
+    DATA:
+      mv_xml_stream TYPE xstring.
 
-    DATA mv_xml_stream TYPE xstring .
-    DATA mv_xml_stream_size TYPE int4 .
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_ECATT_DATA_DOWNL IMPLEMENTATION.
+CLASS zcl_abapgit_ecatt_data_downl IMPLEMENTATION.
 
 
   METHOD download.
@@ -54,10 +51,7 @@ CLASS ZCL_ABAPGIT_ECATT_DATA_DOWNL IMPLEMENTATION.
     lv_partyp = cl_apl_ecatt_const=>params_type_par.
 
     ecatt_data ?= ecatt_object.
-* build_schema( ).
-* set_attributes_to_schema( ).
     set_attributes_to_template( ).
-* set_params_to_schema( ).
     get_general_params_data( im_params = ecatt_data->params
                              im_ptyp   = lv_partyp ).
 
@@ -75,7 +69,6 @@ CLASS ZCL_ABAPGIT_ECATT_DATA_DOWNL IMPLEMENTATION.
 * ENDMS180406
     set_variants_to_dom( ecatt_data->params ).
 
-* download_schema( ).
     download_data( ).
 
   ENDMETHOD.
@@ -85,26 +78,15 @@ CLASS ZCL_ABAPGIT_ECATT_DATA_DOWNL IMPLEMENTATION.
 
     " Downport
 
-    zcl_abapgit_ecatt_helper=>download_data(
-      EXPORTING
-        ii_template_over_all = template_over_all
-      IMPORTING
-        ev_xml_stream        = mv_xml_stream
-        ev_xml_stream_size   = mv_xml_stream_size ).
+    mv_xml_stream = zcl_abapgit_ecatt_helper=>download_data( template_over_all ).
 
   ENDMETHOD.
 
 
-  METHOD get_xml_stream.
+  METHOD zif_abapgit_ecatt_download~get_xml_stream.
 
     rv_xml_stream = mv_xml_stream.
 
   ENDMETHOD.
 
-
-  METHOD get_xml_stream_size.
-
-    rv_xml_stream_size = mv_xml_stream_size.
-
-  ENDMETHOD.
 ENDCLASS.

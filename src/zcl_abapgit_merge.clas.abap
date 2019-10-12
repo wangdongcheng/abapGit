@@ -22,7 +22,7 @@ CLASS zcl_abapgit_merge DEFINITION
         VALUE(rv_source_branch) TYPE string .
     METHODS has_conflicts
       RETURNING
-        VALUE(rv_conflicts_exists) TYPE boolean .
+        VALUE(rv_conflicts_exists) TYPE abap_bool .
     METHODS resolve_conflict
       IMPORTING
         !is_conflict TYPE zif_abapgit_definitions=>ty_merge_conflict
@@ -31,6 +31,7 @@ CLASS zcl_abapgit_merge DEFINITION
     METHODS run
       RAISING
         zcx_abapgit_exception .
+  PROTECTED SECTION.
   PRIVATE SECTION.
 
     TYPES:
@@ -171,7 +172,7 @@ CLASS ZCL_ABAPGIT_MERGE IMPLEMENTATION.
 * added in source and target
         <ls_result>-sha1 = <ls_source>-sha1.
       ELSEIF lv_found_common = abap_false
-         AND <ls_target>-sha1 <> <ls_source>-sha1.
+          AND <ls_target>-sha1 <> <ls_source>-sha1.
 
         INSERT INITIAL LINE INTO TABLE mt_conflicts ASSIGNING <ls_conflict>.
         <ls_conflict>-path = <ls_file>-path.
@@ -196,8 +197,8 @@ CLASS ZCL_ABAPGIT_MERGE IMPLEMENTATION.
       ENDIF.
 
       IF lv_found_source = abap_false
-      OR lv_found_target = abap_false
-      OR lv_found_common = abap_false.
+          OR lv_found_target = abap_false
+          OR lv_found_common = abap_false.
         ms_merge-conflict = |{ <ls_file>-name } merge conflict, not found anywhere|.
         CONTINUE.
       ENDIF.
@@ -241,7 +242,7 @@ CLASS ZCL_ABAPGIT_MERGE IMPLEMENTATION.
 
   METHOD constructor.
 
-    IF iv_source_branch EQ io_repo->get_branch_name( ).
+    IF iv_source_branch = io_repo->get_branch_name( ).
       zcx_abapgit_exception=>raise( 'source = target' ).
     ENDIF.
 
@@ -388,22 +389,22 @@ CLASS ZCL_ABAPGIT_MERGE IMPLEMENTATION.
         AND is_conflict-result_data IS NOT INITIAL.
       READ TABLE mt_conflicts ASSIGNING <ls_conflict> WITH KEY path = is_conflict-path
                                                                filename = is_conflict-filename.
-      IF sy-subrc EQ 0.
+      IF sy-subrc = 0.
         READ TABLE ms_merge-result ASSIGNING <ls_result> WITH KEY path = is_conflict-path
                                                                   name = is_conflict-filename.
-        IF sy-subrc EQ 0.
+        IF sy-subrc = 0.
           <ls_result>-sha1 = is_conflict-result_sha1.
 
           ms_merge-stage->add( iv_path     = <ls_conflict>-path
                                iv_filename = <ls_conflict>-filename
                                iv_data     = is_conflict-result_data ).
 
-          DELETE mt_conflicts WHERE path     EQ is_conflict-path
-                                AND filename EQ is_conflict-filename.
+          DELETE mt_conflicts WHERE path     = is_conflict-path
+                                AND filename = is_conflict-filename.
         ENDIF.
 
         READ TABLE ms_merge-result ASSIGNING <ls_result> WITH KEY sha1 = space.
-        IF sy-subrc EQ 0.
+        IF sy-subrc = 0.
           ms_merge-conflict = |{ <ls_result>-name } merge conflict, changed in source and target branch|.
         ELSE.
           CLEAR ms_merge-conflict.

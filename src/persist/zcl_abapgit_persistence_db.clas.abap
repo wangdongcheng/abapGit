@@ -65,13 +65,15 @@ CLASS zcl_abapgit_persistence_db DEFINITION
         !iv_data  TYPE zif_abapgit_persistence=>ty_content-data_str
       RAISING
         zcx_abapgit_exception .
+  PROTECTED SECTION.
   PRIVATE SECTION.
 
     CLASS-DATA go_db TYPE REF TO zcl_abapgit_persistence_db .
-    DATA: gv_update_function TYPE funcname.
+    DATA mv_update_function TYPE funcname .
 
-    METHODS get_update_function RETURNING VALUE(rv_funcname) TYPE funcname.
-
+    METHODS get_update_function
+      RETURNING
+        VALUE(rv_funcname) TYPE funcname .
     METHODS validate_and_unprettify_xml
       IMPORTING
         !iv_xml       TYPE string
@@ -126,19 +128,19 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_DB IMPLEMENTATION.
 
 
   METHOD get_update_function.
-    IF gv_update_function IS INITIAL.
-      gv_update_function = 'CALL_V1_PING'.
+    IF mv_update_function IS INITIAL.
+      mv_update_function = 'CALL_V1_PING'.
       CALL FUNCTION 'FUNCTION_EXISTS'
         EXPORTING
-          funcname = gv_update_function
+          funcname = mv_update_function
         EXCEPTIONS
           OTHERS   = 2.
 
       IF sy-subrc <> 0.
-        gv_update_function = 'BANK_OBJ_WORKL_RELEASE_LOCKS'.
+        mv_update_function = 'BANK_OBJ_WORKL_RELEASE_LOCKS'.
       ENDIF.
     ENDIF.
-    rv_funcname = gv_update_function.
+    rv_funcname = mv_update_function.
 
   ENDMETHOD.
 
@@ -224,7 +226,7 @@ CLASS ZCL_ABAPGIT_PERSISTENCE_DB IMPLEMENTATION.
 
     UPDATE (c_tabname) SET data_str = lv_data
       WHERE type  = iv_type
-      AND   value = iv_value.
+      AND value = iv_value.
     IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise( 'DB update failed' ).
     ENDIF.

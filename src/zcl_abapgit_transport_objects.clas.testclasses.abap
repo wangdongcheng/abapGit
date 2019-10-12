@@ -10,6 +10,7 @@ CLASS ltcl_transport_objects DEFINITION FOR TESTING DURATION SHORT RISK LEVEL HA
       cant_be_added_with_del_flag    FOR TESTING RAISING cx_static_check,
       cant_be_modified_with_del_flag FOR TESTING RAISING cx_static_check,
       deleted_to_removed_files       FOR TESTING RAISING cx_static_check,
+      should_remove_no_delflag FOR TESTING RAISING cx_static_check,
       shouldnt_remove_no_delflag FOR TESTING RAISING cx_static_check,
       should_add_all_local_files FOR TESTING RAISING cx_static_check,
       should_delete_all_related  FOR TESTING RAISING cx_static_check,
@@ -43,7 +44,8 @@ CLASS ltcl_transport_objects DEFINITION FOR TESTING DURATION SHORT RISK LEVEL HA
       then_it_should_remove_at_stage
         IMPORTING
           iv_filename TYPE string
-          iv_path     TYPE string.
+          iv_path     TYPE string,
+      then_it_should_not_raise_excpt.
 
     DATA: mo_transport_objects TYPE REF TO zcl_abapgit_transport_objects,
           mt_transport_objects TYPE zif_abapgit_definitions=>ty_tadir_tt,
@@ -157,8 +159,8 @@ CLASS ltcl_transport_objects IMPLEMENTATION.
       iv_obj_type   = 'CLAS'
       iv_lstate     = zif_abapgit_definitions=>c_state-added ).
 
-    then_it_should_raise_exception(
-      iv_with_text = 'Object CL_A_CLASS_NOT_IN_REPO not found in the local repository files' ).
+    then_it_should_not_raise_excpt( ).
+
   ENDMETHOD.
 
   METHOD object_not_in_local_files.
@@ -178,9 +180,8 @@ CLASS ltcl_transport_objects IMPLEMENTATION.
       iv_filename = 'CL_FOO.abap'
       iv_path     = '/path'
       iv_data     = 'data' ).
-
     then_it_should_raise_exception(
-      iv_with_text = 'Object CL_FOO not found in the local repository files' ).
+          iv_with_text = 'Object CL_FOO not found in the local repository files' ).
   ENDMETHOD.
 
   METHOD cant_be_added_with_del_flag.
@@ -214,9 +215,9 @@ CLASS ltcl_transport_objects IMPLEMENTATION.
   ENDMETHOD.
   METHOD deleted_to_removed_files.
     given_the_transport_object(
-     iv_obj_name   = 'CL_FOO'
-     iv_obj_type   = 'CLAS'
-     iv_delflag    = abap_true ).
+      iv_obj_name   = 'CL_FOO'
+      iv_obj_type   = 'CLAS'
+      iv_delflag    = abap_true ).
 
     given_the_object_status(
       iv_obj_name   = 'CL_FOO'
@@ -235,9 +236,9 @@ CLASS ltcl_transport_objects IMPLEMENTATION.
   METHOD should_delete_all_related.
     "i.e. Should also delete the XMLs related to the transport objects
     given_the_transport_object(
-     iv_obj_name   = 'CL_FOO'
-     iv_obj_type   = 'CLAS'
-     iv_delflag    = abap_true ).
+      iv_obj_name   = 'CL_FOO'
+      iv_obj_type   = 'CLAS'
+      iv_delflag    = abap_true ).
 
     given_the_object_status(
       iv_obj_name   = 'CL_FOO'
@@ -262,6 +263,22 @@ CLASS ltcl_transport_objects IMPLEMENTATION.
     then_it_should_remove_at_stage(
       iv_filename = 'CL_FOO.xml'
       iv_path     = '/a_path' ).
+  ENDMETHOD.
+
+  METHOD should_remove_no_delflag.
+    given_the_transport_object(
+       iv_obj_name   = 'ZFOO'
+       iv_obj_type   = 'SUSC'
+       iv_delflag    = abap_false ).
+
+    given_the_object_status(
+      iv_obj_name   = 'ZFOO'
+      iv_obj_type   = 'SUSC'
+      iv_filename   = 'zfoo.susc.xml'
+      iv_path       = '/a_path'
+      iv_lstate     = zif_abapgit_definitions=>c_state-deleted ).
+
+    then_it_should_not_raise_excpt( ).
   ENDMETHOD.
 
   METHOD shouldnt_remove_no_delflag.
@@ -323,10 +340,11 @@ CLASS ltcl_transport_objects IMPLEMENTATION.
     lt_staged_objects = mo_stage->get_all( ).
 
     READ TABLE lt_staged_objects TRANSPORTING NO FIELDS
-    WITH KEY file-filename = is_local_file-file-filename
-            file-path      = is_local_file-file-path
-            file-data      = is_local_file-file-data
-            method         = zcl_abapgit_stage=>c_method-add.
+      WITH KEY
+      file-filename = is_local_file-file-filename
+      file-path      = is_local_file-file-path
+      file-data      = is_local_file-file-data
+      method         = zcl_abapgit_stage=>c_method-add.
     IF sy-subrc <> 0.
       cl_abap_unit_assert=>fail( |Object { is_local_file-file-filename } not added to stage| ).
     ENDIF.
@@ -352,11 +370,22 @@ CLASS ltcl_transport_objects IMPLEMENTATION.
     lt_staged_objects = mo_stage->get_all( ).
 
     READ TABLE lt_staged_objects TRANSPORTING NO FIELDS
-    WITH KEY file-filename  = iv_filename
-             file-path      = iv_path.
+      WITH KEY
+      file-filename  = iv_filename
+      file-path      = iv_path.
     IF sy-subrc <> 0.
       cl_abap_unit_assert=>fail( |Object { iv_filename } not removed in stage| ).
     ENDIF.
+  ENDMETHOD.
+
+  METHOD then_it_should_not_raise_excpt.
+    DATA: lx_exception TYPE REF TO zcx_abapgit_exception.
+
+    TRY.
+        when_staging( ).
+      CATCH zcx_abapgit_exception INTO lx_exception.
+        cl_abap_unit_assert=>fail( 'Should not have raised exception' ).
+    ENDTRY.
   ENDMETHOD.
 
 ENDCLASS.

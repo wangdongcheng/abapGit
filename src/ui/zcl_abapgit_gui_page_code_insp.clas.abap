@@ -12,10 +12,10 @@ CLASS zcl_abapgit_gui_page_code_insp DEFINITION PUBLIC FINAL CREATE PUBLIC
         RAISING
           zcx_abapgit_exception,
 
-      zif_abapgit_gui_page~on_event
+      zif_abapgit_gui_event_handler~on_event
         REDEFINITION,
 
-      zif_abapgit_gui_page~render
+      zif_abapgit_gui_renderable~render
         REDEFINITION.
 
   PROTECTED SECTION.
@@ -30,8 +30,10 @@ CLASS zcl_abapgit_gui_page_code_insp DEFINITION PUBLIC FINAL CREATE PUBLIC
         commit TYPE string VALUE 'commit' ##NO_TEXT,
         rerun  TYPE string VALUE 'rerun' ##NO_TEXT,
       END OF c_actions.
+
     DATA:
-      mo_stage  TYPE REF TO zcl_abapgit_stage.
+      mo_stage         TYPE REF TO zcl_abapgit_stage,
+      mv_check_variant TYPE sci_chkv.
 
     METHODS:
       build_menu
@@ -50,13 +52,57 @@ CLASS zcl_abapgit_gui_page_code_insp DEFINITION PUBLIC FINAL CREATE PUBLIC
 
       is_stage_allowed
         RETURNING
-          VALUE(rv_is_stage_allowed) TYPE abap_bool.
+          VALUE(rv_is_stage_allowed) TYPE abap_bool,
+
+      ask_user_for_check_variant
+        RETURNING
+          VALUE(rv_check_variant) TYPE sci_chkv
+        RAISING
+          zcx_abapgit_exception,
+
+      determine_check_variant
+        RAISING
+          zcx_abapgit_exception.
 
 ENDCLASS.
 
 
 
 CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
+
+
+  METHOD ask_user_for_check_variant.
+
+    DATA: lt_return TYPE STANDARD TABLE OF ddshretval.
+
+    FIELD-SYMBOLS: <ls_return> LIKE LINE OF lt_return.
+
+    CALL FUNCTION 'F4IF_FIELD_VALUE_REQUEST'
+      EXPORTING
+        tabname           = 'SCI_DYNP'
+        fieldname         = 'CHKV'
+      TABLES
+        return_tab        = lt_return
+      EXCEPTIONS
+        field_not_found   = 1
+        no_help_for_field = 2
+        inconsistent_help = 3
+        no_values_found   = 4
+        OTHERS            = 5.
+
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise_t100( ).
+    ENDIF.
+
+    READ TABLE lt_return ASSIGNING <ls_return>
+                         WITH KEY retfield = 'SCI_DYNP-CHKV'.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise( |Please select a check variant.| ).
+    ENDIF.
+
+    rv_check_variant = <ls_return>-fieldval.
+
+  ENDMETHOD.
 
 
   METHOD build_menu.
@@ -70,7 +116,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
                   iv_cur = abap_false ) ##NO_TEXT.
 
     IF is_stage_allowed( ) = abap_false.
-      lv_opt = zif_abapgit_definitions=>c_html_opt-crossout.
+      lv_opt = zif_abapgit_html=>c_html_opt-crossout.
     ENDIF.
 
     IF mo_repo->is_offline( ) = abap_true.
@@ -101,10 +147,22 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
 
   METHOD constructor.
     super->constructor( ).
-    mo_repo ?= io_repo.
+    mo_repo = io_repo.
     mo_stage = io_stage.
     ms_control-page_title = 'Code Inspector'.
+    determine_check_variant( ).
     run_code_inspector( ).
+  ENDMETHOD.
+
+
+  METHOD determine_check_variant.
+
+    mv_check_variant = mo_repo->get_local_settings( )-code_inspector_check_variant.
+
+    IF mv_check_variant IS INITIAL.
+      mv_check_variant = ask_user_for_check_variant( ).
+    ENDIF.
+
   ENDMETHOD.
 
 
@@ -119,7 +177,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
 
   METHOD is_stage_allowed.
 
-    rv_is_stage_allowed =  boolc( NOT ( mo_repo->get_local_settings( )-block_commit = abap_true
+    rv_is_stage_allowed = boolc( NOT ( mo_repo->get_local_settings( )-block_commit = abap_true
                                            AND has_inspection_errors( ) = abap_true ) ).
 
   ENDMETHOD.
@@ -127,44 +185,45 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
 
   METHOD render_content.
 
-    DATA: lv_check_variant TYPE sci_chkv.
-
-    FIELD-SYMBOLS: <ls_result> TYPE scir_alvlist.
-
     CREATE OBJECT ro_html.
 
-    lv_check_variant = mo_repo->get_local_settings( )-code_inspector_check_variant.
-
-    IF lv_check_variant IS INITIAL.
-      ro_html->add( |No check variant maintained in repo settings.| ).
+    IF mv_check_variant IS INITIAL.
+      ro_html->add( zcl_abapgit_gui_chunk_lib=>render_error( iv_error = 'No check variant supplied.' ) ).
       RETURN.
     ENDIF.
 
-    ro_html->add( '<div class="toc"><br/>' ).
-
-    ro_html->add( |Code inspector check variant: {
-                    mo_repo->get_local_settings( )-code_inspector_check_variant
-                  }<br/>| ).
+    ro_html->add( '<div class="ci-head">' ).
+    ro_html->add( |Code inspector check variant: <span class="ci-variant">{ mv_check_variant }</span>| ).
+    ro_html->add( |<div class="float-right package-name">{
+      zcl_abapgit_html=>icon( 'box/grey70' ) }<span>{
+      mo_repo->get_package( ) }</span></div>| ).
+    ro_html->add( '</div>' ).
 
     IF lines( mt_result ) = 0.
-      ro_html->add( '<br/><div class="success">No code inspector findings</div>' ).
+      ro_html->add( '<div class="dummydiv success">' ).
+      ro_html->add( zcl_abapgit_html=>icon( 'check' ) ).
+      ro_html->add( 'No code inspector findings' ).
+      ro_html->add( '</div>' ).
+    ELSE.
+      render_result(
+        io_html   = ro_html
+        it_result = mt_result ).
     ENDIF.
-
-    ro_html->add( |<br/>| ).
-
-    LOOP AT mt_result ASSIGNING <ls_result>.
-      render_result( io_html   = ro_html
-                     iv_result = <ls_result> ).
-    ENDLOOP.
-
-    ro_html->add( '</div>' ).
 
   ENDMETHOD.
 
 
   METHOD run_code_inspector.
 
-    mt_result = mo_repo->run_code_inspector( ).
+    DATA: li_code_inspector TYPE REF TO zif_abapgit_code_inspector.
+
+    li_code_inspector = zcl_abapgit_factory=>get_code_inspector( mo_repo->get_package( ) ).
+
+    mt_result = li_code_inspector->run(
+      iv_variant = |{ mv_check_variant }|
+      iv_save    = abap_true ).
+
+    DELETE mt_result WHERE kind = 'N'.
 
   ENDMETHOD.
 
@@ -173,20 +232,20 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
 
     DATA: ls_hotkey_action LIKE LINE OF rt_hotkey_actions.
 
-    ls_hotkey_action-name           = |Code Inspector: Stage|.
-    ls_hotkey_action-action         = c_actions-stage.
-    ls_hotkey_action-default_hotkey = |s|.
+    ls_hotkey_action-name   = |Stage|.
+    ls_hotkey_action-action = c_actions-stage.
+    ls_hotkey_action-hotkey = |s|.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
-    ls_hotkey_action-name           = |Code Inspector: Re-Run|.
-    ls_hotkey_action-action         = c_actions-rerun.
-    ls_hotkey_action-default_hotkey = |r|.
+    ls_hotkey_action-name   = |Re-Run|.
+    ls_hotkey_action-action = c_actions-rerun.
+    ls_hotkey_action-hotkey = |r|.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_gui_page~on_event.
+  METHOD zif_abapgit_gui_event_handler~on_event.
 
     DATA: lo_repo_online TYPE REF TO zcl_abapgit_repo_online.
 
@@ -202,12 +261,12 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
           CREATE OBJECT ei_page TYPE zcl_abapgit_gui_page_stage
             EXPORTING
               io_repo = lo_repo_online.
-          ev_state = zif_abapgit_definitions=>c_event_state-new_page.
+          ev_state = zcl_abapgit_gui=>c_event_state-new_page.
 
         ELSE.
 
           ei_page = me.
-          ev_state = zif_abapgit_definitions=>c_event_state-no_more_act.
+          ev_state = zcl_abapgit_gui=>c_event_state-no_more_act.
 
         ENDIF.
 
@@ -221,12 +280,12 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
             EXPORTING
               io_repo  = lo_repo_online
               io_stage = mo_stage.
-          ev_state = zif_abapgit_definitions=>c_event_state-new_page.
+          ev_state = zcl_abapgit_gui=>c_event_state-new_page.
 
         ELSE.
 
           ei_page = me.
-          ev_state = zif_abapgit_definitions=>c_event_state-no_more_act.
+          ev_state = zcl_abapgit_gui=>c_event_state-no_more_act.
 
         ENDIF.
 
@@ -235,9 +294,9 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
         run_code_inspector( ).
 
         ei_page = me.
-        ev_state = zif_abapgit_definitions=>c_event_state-re_render.
+        ev_state = zcl_abapgit_gui=>c_event_state-re_render.
       WHEN OTHERS.
-        super->zif_abapgit_gui_page~on_event(
+        super->zif_abapgit_gui_event_handler~on_event(
           EXPORTING
             iv_action             = iv_action
             iv_prev_page          = iv_prev_page
@@ -251,10 +310,10 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODE_INSP IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_gui_page~render.
+  METHOD zif_abapgit_gui_renderable~render.
 
     ms_control-page_menu = build_menu( ).
-    ro_html = super->zif_abapgit_gui_page~render( ).
+    ro_html = super->zif_abapgit_gui_renderable~render( ).
 
   ENDMETHOD.
 ENDCLASS.

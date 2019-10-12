@@ -44,12 +44,14 @@ CLASS ltcl_dangerous IMPLEMENTATION.
           lv_msg     TYPE string,
           lt_results TYPE zif_abapgit_definitions=>ty_results_tt,
           ls_checks  TYPE zif_abapgit_definitions=>ty_deserialize_checks,
-          lt_types   TYPE zcl_abapgit_objects=>ty_types_tt.
+          lt_types   TYPE zcl_abapgit_objects=>ty_types_tt,
+          lo_log     TYPE REF TO zif_abapgit_log.
 
     FIELD-SYMBOLS: <ls_result> LIKE LINE OF lt_results,
                    <ls_tadir>  LIKE LINE OF lt_tadir,
                    <lv_type>   LIKE LINE OF lt_types.
 
+    CREATE OBJECT lo_log TYPE zcl_abapgit_log.
 
     zcl_abapgit_factory=>get_sap_package( c_package )->create_local( ).
 
@@ -60,7 +62,8 @@ CLASS ltcl_dangerous IMPLEMENTATION.
       iv_branch_name = 'refs/heads/master'
       iv_package     = c_package ).
     lo_repo->status( ).
-    lo_repo->deserialize( ls_checks ).
+    lo_repo->deserialize( is_checks = ls_checks
+                          ii_log    = lo_log ).
 
     lt_tadir = zcl_abapgit_factory=>get_tadir( )->read( c_package ).
     LOOP AT lt_types ASSIGNING <lv_type>.
@@ -382,11 +385,15 @@ CLASS ltcl_object_ddls_mock IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_abapgit_object~get_deserialize_steps. "##needed
+
+  ENDMETHOD.
+
   METHOD zif_abapgit_object~changed_by. "##needed
 
   ENDMETHOD.
 
-  METHOD zif_abapgit_object~compare_to_remote_version. "##needed
+  METHOD zif_abapgit_object~get_comparator. "##needed
 
   ENDMETHOD.
 
@@ -403,10 +410,6 @@ CLASS ltcl_object_ddls_mock IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_abapgit_object~get_metadata. "##needed
-
-  ENDMETHOD.
-
-  METHOD zif_abapgit_object~has_changed_since. "##needed
 
   ENDMETHOD.
 
@@ -727,6 +730,92 @@ CLASS ltcl_adjust_namespaces IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = |ZTEST|
       act = ls_result-obj_name ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+CLASS ltcl_prio_deserialization DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    METHODS:
+      setup,
+      ddls_before_dcls FOR TESTING RAISING cx_static_check,
+
+      given
+        IMPORTING
+          iv_object_type TYPE trobjtype,
+      when_deser_is_priorized,
+      then
+        IMPORTING
+          iv_exp_object_type TYPE trobjtype.
+
+    DATA:
+      mo_objects          TYPE REF TO zcl_abapgit_objects,
+      mt_input            TYPE zif_abapgit_definitions=>ty_results_tt,
+      mt_output           TYPE zif_abapgit_definitions=>ty_results_tt,
+      mv_exp_output_tabix TYPE i.
+
+ENDCLASS.
+
+CLASS zcl_abapgit_objects DEFINITION LOCAL FRIENDS ltcl_prio_deserialization.
+
+CLASS ltcl_prio_deserialization IMPLEMENTATION.
+
+  METHOD setup.
+
+    CREATE OBJECT mo_objects.
+    mv_exp_output_tabix = 0.
+
+  ENDMETHOD.
+
+  METHOD ddls_before_dcls.
+
+    given( 'DCLS' ).
+    given( 'DDLS' ).
+    given( 'DCLS' ).
+    given( 'DDLS' ).
+
+    when_deser_is_priorized( ).
+
+    then( 'DDLS' ).
+    then( 'DDLS' ).
+    then( 'DCLS' ).
+    then( 'DCLS' ).
+
+  ENDMETHOD.
+
+
+  METHOD given.
+
+    DATA: ls_input LIKE LINE OF mt_input.
+
+    ls_input-obj_type = iv_object_type.
+    INSERT ls_input INTO TABLE mt_input.
+
+  ENDMETHOD.
+
+
+  METHOD when_deser_is_priorized.
+
+    mt_output = mo_objects->prioritize_deser( mt_input ).
+
+  ENDMETHOD.
+
+
+  METHOD then.
+
+    DATA: ls_output LIKE LINE OF mt_output.
+
+    mv_exp_output_tabix = mv_exp_output_tabix + 1.
+
+    READ TABLE mt_output INTO ls_output INDEX mv_exp_output_tabix.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = iv_exp_object_type
+      act = ls_output-obj_type ).
 
   ENDMETHOD.
 

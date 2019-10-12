@@ -15,7 +15,8 @@ CLASS zcl_abapgit_repo_content_list DEFINITION
       RAISING   zcx_abapgit_exception.
 
     METHODS get_log
-      RETURNING VALUE(ro_log) TYPE REF TO zcl_abapgit_log.
+      RETURNING VALUE(ri_log) TYPE REF TO zif_abapgit_log.
+  PROTECTED SECTION.
   PRIVATE SECTION.
     CONSTANTS: BEGIN OF c_sortkey,
                  default    TYPE i VALUE 9999,
@@ -27,13 +28,13 @@ CLASS zcl_abapgit_repo_content_list DEFINITION
                END OF c_sortkey.
 
     DATA: mo_repo TYPE REF TO zcl_abapgit_repo,
-          mo_log  TYPE REF TO zcl_abapgit_log.
+          mi_log  TYPE REF TO zif_abapgit_log.
 
-    METHODS build_repo_items_offline
+    METHODS build_repo_items_local_only
       RETURNING VALUE(rt_repo_items) TYPE zif_abapgit_definitions=>tt_repo_items
       RAISING   zcx_abapgit_exception.
 
-    METHODS build_repo_items_online
+    METHODS build_repo_items_with_remote
       RETURNING VALUE(rt_repo_items) TYPE zif_abapgit_definitions=>tt_repo_items
       RAISING   zcx_abapgit_exception.
 
@@ -101,7 +102,7 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD build_repo_items_offline.
+  METHOD build_repo_items_local_only.
 
     DATA: lt_tadir TYPE zif_abapgit_definitions=>ty_tadir_tt,
           ls_item  TYPE zif_abapgit_definitions=>ty_item.
@@ -131,18 +132,17 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD build_repo_items_online.
+  METHOD build_repo_items_with_remote.
 
-    DATA: lo_repo_online TYPE REF TO zcl_abapgit_repo_online,
-          ls_file        TYPE zif_abapgit_definitions=>ty_repo_file,
-          lt_status      TYPE zif_abapgit_definitions=>ty_results_tt.
+    DATA:
+      ls_file   TYPE zif_abapgit_definitions=>ty_repo_file,
+      lt_status TYPE zif_abapgit_definitions=>ty_results_tt.
 
     FIELD-SYMBOLS: <ls_status>    LIKE LINE OF lt_status,
                    <ls_repo_item> LIKE LINE OF rt_repo_items.
 
 
-    lo_repo_online ?= mo_repo.
-    lt_status       = lo_repo_online->status( mo_log ).
+    lt_status = mo_repo->status( mi_log ).
 
     LOOP AT lt_status ASSIGNING <ls_status>.
       AT NEW obj_name. "obj_type + obj_name
@@ -163,8 +163,8 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
         ls_file-lstate     = <ls_status>-lstate.
         APPEND ls_file TO <ls_repo_item>-files.
 
-        IF <ls_status>-inactive = abap_true AND
-           <ls_repo_item>-sortkey > c_sortkey-changed.
+        IF <ls_status>-inactive = abap_true
+            AND <ls_repo_item>-sortkey > c_sortkey-changed.
           <ls_repo_item>-sortkey = c_sortkey-inactive.
         ENDIF.
 
@@ -191,30 +191,54 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
 
   METHOD constructor.
     mo_repo = io_repo.
-    CREATE OBJECT mo_log.
+    CREATE OBJECT mi_log TYPE zcl_abapgit_log.
   ENDMETHOD.
 
 
   METHOD filter_changes.
 
-    DELETE ct_repo_items WHERE changes = 0.
+    FIELD-SYMBOLS: <ls_item> TYPE zif_abapgit_definitions=>ty_repo_item.
 
+    DELETE ct_repo_items WHERE changes = 0.
+    LOOP AT ct_repo_items ASSIGNING <ls_item>.
+      DELETE <ls_item>-files WHERE is_changed = abap_false.
+    ENDLOOP.
   ENDMETHOD.
 
 
   METHOD get_log.
-    ro_log = mo_log.
+    DATA li_repo_log TYPE REF TO zif_abapgit_log.
+    DATA lt_repo_msg TYPE zif_abapgit_log=>tty_log_out.
+    DATA lr_repo_msg TYPE REF TO zif_abapgit_log=>ty_log_out.
+
+    ri_log = mi_log.
+
+    "add warning and error messages from repo log
+    li_repo_log = mo_repo->get_log( ).
+    IF li_repo_log IS BOUND.
+      lt_repo_msg = li_repo_log->get_messages( ).
+      LOOP AT lt_repo_msg REFERENCE INTO lr_repo_msg WHERE type CA 'EW'.
+        CASE lr_repo_msg->type.
+          WHEN 'E'.
+            ri_log->add_error( iv_msg = lr_repo_msg->text ).
+          WHEN 'W'.
+            ri_log->add_warning( iv_msg = lr_repo_msg->text ).
+          WHEN OTHERS.
+            CONTINUE.
+        ENDCASE.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
 
   METHOD list.
 
-    mo_log->clear( ).
+    mi_log->clear( ).
 
-    IF mo_repo->is_offline( ) = abap_true.
-      rt_repo_items = build_repo_items_offline( ).
+    IF mo_repo->has_remote_source( ) = abap_true.
+      rt_repo_items = build_repo_items_with_remote( ).
     ELSE.
-      rt_repo_items = build_repo_items_online( ).
+      rt_repo_items = build_repo_items_local_only( ).
     ENDIF.
 
     IF iv_by_folders = abap_true.
@@ -223,14 +247,14 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
         CHANGING  ct_repo_items = rt_repo_items ).
     ENDIF.
 
-    IF iv_changes_only = abap_true AND mo_repo->is_offline( ) = abap_false.
+    IF iv_changes_only = abap_true.
       " There are never changes for offline repositories
       filter_changes( CHANGING ct_repo_items = rt_repo_items ).
     ENDIF.
 
     SORT rt_repo_items BY
       sortkey ASCENDING
-      obj_type ASCENDING
+      path ASCENDING
       obj_name ASCENDING.
 
   ENDMETHOD.

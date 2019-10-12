@@ -2,7 +2,6 @@ CLASS zcl_abapgit_branch_overview DEFINITION
   PUBLIC
   FINAL
   CREATE PRIVATE
-
   GLOBAL FRIENDS zcl_abapgit_factory .
 
   PUBLIC SECTION.
@@ -17,6 +16,7 @@ CLASS zcl_abapgit_branch_overview DEFINITION
       RAISING
         zcx_abapgit_exception .
 
+  PROTECTED SECTION.
   PRIVATE SECTION.
 
     TYPES:
@@ -75,16 +75,15 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
+CLASS zcl_abapgit_branch_overview IMPLEMENTATION.
 
 
   METHOD constructor.
 
     DATA: lt_objects TYPE zif_abapgit_definitions=>ty_objects_tt.
 
-    CLEAR mt_branches.
-
     lt_objects = get_git_objects( io_repo ).
+
     mt_commits = parse_commits( lt_objects ).
     _sort_commits( CHANGING ct_commits = mt_commits ).
 
@@ -97,7 +96,6 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
     determine_tags( ).
     fixes( ).
 
-
   ENDMETHOD.
 
 
@@ -105,15 +103,23 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
 
     CONSTANTS: lc_head TYPE string VALUE 'HEAD'.
 
-    DATA: lv_name TYPE string.
+    TYPES: BEGIN OF ty_branch_with_time,
+             time TYPE string,
+             name TYPE string,
+             sha1 TYPE zif_abapgit_definitions=>ty_sha1,
+           END OF ty_branch_with_time.
 
-    FIELD-SYMBOLS: <ls_branch> LIKE LINE OF mt_branches,
-                   <ls_head>   LIKE LINE OF mt_branches,
-                   <ls_commit> LIKE LINE OF mt_commits,
-                   <ls_create> LIKE LINE OF <ls_commit>-create.
+    DATA: lt_branches_sorted_by_time TYPE SORTED TABLE OF ty_branch_with_time WITH NON-UNIQUE KEY time,
+          ls_branches_with_time      TYPE ty_branch_with_time.
+
+    FIELD-SYMBOLS: <ls_branch>                LIKE LINE OF mt_branches,
+                   <ls_branch_sorted_by_time> LIKE LINE OF lt_branches_sorted_by_time,
+                   <ls_head>                  LIKE LINE OF mt_branches,
+                   <ls_commit>                LIKE LINE OF mt_commits,
+                   <ls_create>                LIKE LINE OF <ls_commit>-create.
 
 
-* exchange HEAD, and make sure the branch determination starts with the HEAD branch
+* Exchange HEAD, and make sure the branch determination starts with the HEAD branch
     READ TABLE mt_branches ASSIGNING <ls_head> WITH KEY name = lc_head.
     ASSERT sy-subrc = 0.
     LOOP AT mt_branches ASSIGNING <ls_branch>
@@ -123,17 +129,39 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
       EXIT.
     ENDLOOP.
 
+* Sort Branches by Commit Time
     LOOP AT mt_branches ASSIGNING <ls_branch>.
-      lv_name = <ls_branch>-name+11.
+
       READ TABLE mt_commits ASSIGNING <ls_commit> WITH KEY sha1 = <ls_branch>-sha1.
+      IF sy-subrc = 0.
+
+        ls_branches_with_time-name = <ls_branch>-name+11.
+        ls_branches_with_time-sha1 = <ls_branch>-sha1.
+
+        IF <ls_branch>-is_head = abap_true.
+          ls_branches_with_time-time = '0000000000'. "Force HEAD to be the first one
+        ELSE.
+          ls_branches_with_time-time = <ls_commit>-time.
+        ENDIF.
+
+        INSERT ls_branches_with_time INTO TABLE lt_branches_sorted_by_time.
+        CLEAR ls_branches_with_time.
+
+      ENDIF.
+    ENDLOOP.
+
+
+    LOOP AT lt_branches_sorted_by_time ASSIGNING <ls_branch_sorted_by_time>.
+
+      READ TABLE mt_commits ASSIGNING <ls_commit> WITH KEY sha1 = <ls_branch_sorted_by_time>-sha1.
       ASSERT sy-subrc = 0.
 
       DO.
         IF <ls_commit>-branch IS INITIAL.
-          <ls_commit>-branch = lv_name.
+          <ls_commit>-branch = <ls_branch_sorted_by_time>-name.
         ELSE.
           APPEND INITIAL LINE TO <ls_commit>-create ASSIGNING <ls_create>.
-          <ls_create>-name = lv_name.
+          <ls_create>-name = <ls_branch_sorted_by_time>-name.
           <ls_create>-parent = <ls_commit>-branch.
           EXIT.
         ENDIF.
@@ -155,7 +183,7 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
   METHOD determine_merges.
 
     DATA: BEGIN OF ls_deleted_branch_info,
-            created TYPE flag,
+            created TYPE abap_bool,
             index   TYPE string,
             name    TYPE string,
           END OF ls_deleted_branch_info.
@@ -234,7 +262,7 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
 
       CHECK sy-subrc = 0.
 
-      lv_tag = zcl_abapgit_tag=>remove_tag_prefix( <ls_tag>-name ).
+      lv_tag = zcl_abapgit_git_tag=>remove_tag_prefix( <ls_tag>-name ).
       INSERT lv_tag INTO TABLE <ls_commit>-tags.
 
     ENDLOOP.
@@ -260,7 +288,7 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
   METHOD get_git_objects.
 
     DATA: lo_branch_list       TYPE REF TO zcl_abapgit_git_branch_list,
-          lo_progress          TYPE REF TO zcl_abapgit_progress,
+          li_progress          TYPE REF TO zif_abapgit_progress,
           lt_branches_and_tags TYPE zif_abapgit_definitions=>ty_git_branch_list_tt,
           lt_tags              TYPE zif_abapgit_definitions=>ty_git_branch_list_tt,
           ls_tag               LIKE LINE OF mt_tags.
@@ -268,11 +296,9 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
     FIELD-SYMBOLS: <ls_branch> LIKE LINE OF lt_tags.
 
 
-    CREATE OBJECT lo_progress
-      EXPORTING
-        iv_total = 1.
+    li_progress = zcl_abapgit_progress=>get_instance( 1 ).
 
-    lo_progress->show(
+    li_progress->show(
       iv_current = 1
       iv_text    = |Get git objects { io_repo->get_name( ) }| ) ##NO_TEXT.
 
@@ -309,6 +335,7 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
         et_objects     = rt_objects ).
 
     DELETE rt_objects WHERE type = zif_abapgit_definitions=>c_type-blob.
+
 
   ENDMETHOD.
 
@@ -350,7 +377,8 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
           lt_body   TYPE STANDARD TABLE OF string WITH DEFAULT KEY,
           ls_raw    TYPE zcl_abapgit_git_pack=>ty_commit.
 
-    FIELD-SYMBOLS: <ls_object> LIKE LINE OF it_objects.
+    FIELD-SYMBOLS: <ls_object> LIKE LINE OF it_objects,
+                   <lv_body>   TYPE string.
 
 
     LOOP AT it_objects ASSIGNING <ls_object> USING KEY type
@@ -371,6 +399,11 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
       ENDIF.
 
       READ TABLE lt_body INDEX 1 INTO ls_commit-message.  "#EC CI_SUBRC
+      " The second line is always empty. Therefore we omit it.
+      LOOP AT lt_body ASSIGNING <lv_body>
+                      FROM 3.
+        INSERT <lv_body> INTO TABLE ls_commit-body.
+      ENDLOOP.
 
 * unix time stamps are in same time zone, so ignore the zone,
       FIND REGEX zif_abapgit_definitions=>c_author_regex IN ls_raw-author
@@ -419,7 +452,6 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
                    <ls_temp>     LIKE LINE OF lt_temp,
                    <ls_temp_end> LIKE LINE OF lt_temp,
                    <ls_commit>   LIKE LINE OF it_commits.
-
 
     LOOP AT mt_branches ASSIGNING <ls_branch>.
 
@@ -527,7 +559,7 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
   METHOD _sort_commits.
 
     DATA: lt_sorted_commits TYPE ty_commits,
-          lv_next_commit    TYPE zif_abapgit_definitions=>ty_commit,
+          ls_next_commit    TYPE zif_abapgit_definitions=>ty_commit,
           lt_parents        TYPE tyt_commit_sha1_range,
           ls_parent         LIKE LINE OF lt_parents.
 
@@ -551,12 +583,12 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
       DO.
         _get_1st_child_commit( EXPORTING it_commit_sha1s = lt_parents
                                IMPORTING et_commit_sha1s = lt_parents
-                                         es_1st_commit   = lv_next_commit
+                                         es_1st_commit   = ls_next_commit
                                CHANGING  ct_commits      = ct_commits ).
-        IF lv_next_commit IS INITIAL.
+        IF ls_next_commit IS INITIAL.
           EXIT. "DO
         ENDIF.
-        INSERT lv_next_commit INTO TABLE lt_sorted_commits.
+        INSERT ls_next_commit INTO TABLE lt_sorted_commits.
       ENDDO.
     ENDIF.
 

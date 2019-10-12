@@ -30,6 +30,8 @@ SELECTION-SCREEN BEGIN OF SCREEN 1001.
 * dummy for triggering screen on Java SAP GUI
 SELECTION-SCREEN END OF SCREEN 1001.
 
+TABLES sscrfields.
+
 INCLUDE zabapgit_password_dialog. " !!! Contains SELECTION SCREEN
 
 * create class ZCL_ABAPGIT_AUTH_EXIT implementing ZIF_ABAPGIT_AUTH in following include,
@@ -48,6 +50,7 @@ INCLUDE zabapgit_forms.
 
 **********************************************************************
 INITIALIZATION.
+  PERFORM remove_toolbar USING '1001'. " Remove toolbar on html screen
   lcl_password_dialog=>on_screen_init( ).
 
 START-OF-SELECTION.

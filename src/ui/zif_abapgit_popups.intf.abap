@@ -4,10 +4,13 @@ INTERFACE zif_abapgit_popups
 
   TYPES:
     BEGIN OF ty_popup,
-      url         TYPE string,
-      package     TYPE devclass,
-      branch_name TYPE string,
-      cancel      TYPE abap_bool,
+      url          TYPE string,
+      package      TYPE devclass,
+      branch_name  TYPE string,
+      display_name TYPE string,
+      folder_logic TYPE string,
+      ign_subpkg   TYPE abap_bool,
+      cancel       TYPE abap_bool,
     END OF ty_popup .
 
   CONSTANTS c_new_branch_label TYPE string VALUE '+ create new ...' ##NO_TEXT.
@@ -64,6 +67,7 @@ INTERFACE zif_abapgit_popups
       !iv_freeze_package TYPE abap_bool OPTIONAL
       !iv_freeze_url     TYPE abap_bool OPTIONAL
       !iv_title          TYPE clike DEFAULT 'New Online Project'
+      !iv_display_name   TYPE string OPTIONAL
     RETURNING
       VALUE(rs_popup)    TYPE zif_abapgit_popups=>ty_popup
     RAISING
@@ -91,7 +95,7 @@ INTERFACE zif_abapgit_popups
   METHODS popup_to_create_package
     EXPORTING
       !es_package_data TYPE scompkdtln
-      !ev_create       TYPE boolean
+      !ev_create       TYPE abap_bool
     RAISING
       zcx_abapgit_exception .
   METHODS popup_to_create_transp_branch
@@ -100,8 +104,7 @@ INTERFACE zif_abapgit_popups
     RETURNING
       VALUE(rs_transport_branch) TYPE zif_abapgit_definitions=>ty_transport_to_branch
     RAISING
-      zcx_abapgit_exception
-      zcx_abapgit_cancel .
+      zcx_abapgit_exception.
   METHODS popup_to_select_transports
     RETURNING
       VALUE(rt_trkorr) TYPE trwbo_request_headers .
@@ -110,11 +113,10 @@ INTERFACE zif_abapgit_popups
       !it_list               TYPE STANDARD TABLE
       !iv_header_text        TYPE csequence
       !iv_select_column_text TYPE csequence
-      !it_columns_to_display TYPE stringtab
+      !it_columns_to_display TYPE string_table
     EXPORTING
       VALUE(et_list)         TYPE STANDARD TABLE
     RAISING
-      zcx_abapgit_cancel
       zcx_abapgit_exception .
   METHODS branch_popup_callback
     IMPORTING
@@ -140,6 +142,5 @@ INTERFACE zif_abapgit_popups
     RETURNING
       VALUE(rv_transport) TYPE trkorr
     RAISING
-      zcx_abapgit_exception
-      zcx_abapgit_cancel .
+      zcx_abapgit_exception.
 ENDINTERFACE.

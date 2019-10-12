@@ -4,42 +4,46 @@ CLASS zcl_abapgit_object_msag DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
     INTERFACES zif_abapgit_object.
     ALIASES mo_files FOR zif_abapgit_object~mo_files.
 
+  PROTECTED SECTION.
   PRIVATE SECTION.
-    TYPES: BEGIN OF ty_t100_texts,
-             sprsl TYPE t100-sprsl,
-             msgnr TYPE t100-msgnr,
-             text  TYPE t100-text,
-           END OF ty_t100_texts,
-           tt_t100_texts TYPE STANDARD TABLE OF ty_t100_texts,
-           tty_t100      TYPE STANDARD TABLE OF t100
-                         WITH NON-UNIQUE DEFAULT KEY,
-           BEGIN OF ty_longtext,
-             dokil TYPE dokil,
-             head  TYPE thead,
-             lines TYPE tline_tab,
-           END OF ty_longtext,
-           tty_longtexts TYPE STANDARD TABLE OF ty_longtext
-                              WITH NON-UNIQUE DEFAULT KEY.
 
-    METHODS:
-      serialize_texts
-        IMPORTING io_xml TYPE REF TO zcl_abapgit_xml_output
-        RAISING   zcx_abapgit_exception,
-      deserialize_texts
-        IMPORTING io_xml TYPE REF TO zcl_abapgit_xml_input
-        RAISING   zcx_abapgit_exception,
-      serialize_longtexts_msag
-        IMPORTING it_t100 TYPE zcl_abapgit_object_msag=>tty_t100
-                  io_xml  TYPE REF TO zcl_abapgit_xml_output
-        RAISING   zcx_abapgit_exception,
-      delete_msgid IMPORTING iv_message_id TYPE arbgb,
-      free_access_permission
-        IMPORTING
-          iv_message_id TYPE arbgb,
-      delete_documentation
-        IMPORTING
-          iv_message_id TYPE arbgb.
+    TYPES:
+      BEGIN OF ty_t100_texts,
+        sprsl TYPE t100-sprsl,
+        msgnr TYPE t100-msgnr,
+        text  TYPE t100-text,
+      END OF ty_t100_texts .
+    TYPES:
+      tt_t100_texts TYPE STANDARD TABLE OF ty_t100_texts .
+    TYPES:
+      tty_t100      TYPE STANDARD TABLE OF t100
+                           WITH NON-UNIQUE DEFAULT KEY .
 
+    METHODS serialize_texts
+      IMPORTING
+        !io_xml TYPE REF TO zcl_abapgit_xml_output
+      RAISING
+        zcx_abapgit_exception .
+    METHODS deserialize_texts
+      IMPORTING
+        !io_xml TYPE REF TO zcl_abapgit_xml_input
+      RAISING
+        zcx_abapgit_exception .
+    METHODS serialize_longtexts_msag
+      IMPORTING
+        !it_t100 TYPE zcl_abapgit_object_msag=>tty_t100
+        !io_xml  TYPE REF TO zcl_abapgit_xml_output
+      RAISING
+        zcx_abapgit_exception .
+    METHODS delete_msgid
+      IMPORTING
+        !iv_message_id TYPE arbgb .
+    METHODS free_access_permission
+      IMPORTING
+        !iv_message_id TYPE arbgb .
+    METHODS delete_documentation
+      IMPORTING
+        !iv_message_id TYPE arbgb .
 ENDCLASS.
 
 
@@ -159,7 +163,8 @@ CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
     DATA: lv_object  TYPE dokhl-object,
           lt_objects TYPE STANDARD TABLE OF dokhl-object
                           WITH NON-UNIQUE DEFAULT KEY,
-          lt_dokil   TYPE zif_abapgit_definitions=>tty_dokil.
+          lt_dokil   TYPE zif_abapgit_definitions=>tty_dokil,
+          ls_dokil   LIKE LINE OF lt_dokil.
 
     FIELD-SYMBOLS: <ls_t100>  TYPE t100.
 
@@ -175,10 +180,13 @@ CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
     ENDLOOP.
 
     SELECT * FROM dokil
-             INTO TABLE lt_dokil
-             FOR ALL ENTRIES IN lt_objects
-             WHERE id     = 'NA'
-             AND   object = lt_objects-table_line.
+      INTO TABLE lt_dokil
+      FOR ALL ENTRIES IN lt_objects
+      WHERE id = 'NA'
+      AND object = lt_objects-table_line.
+
+    CLEAR ls_dokil-dokstate.
+    MODIFY lt_dokil FROM ls_dokil TRANSPORTING dokstate WHERE dokstate IS NOT INITIAL.
 
     IF lines( lt_dokil ) > 0.
       serialize_longtexts( io_xml   = io_xml
@@ -197,12 +205,16 @@ CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
 
     lv_msg_id = ms_item-obj_name.
 
+    IF io_xml->i18n_params( )-serialize_master_lang_only = abap_true.
+      RETURN. " skip
+    ENDIF.
+
     " Collect additional languages
     " Skip master lang - it has been already serialized
     SELECT DISTINCT sprsl AS langu INTO TABLE lt_i18n_langs
       FROM t100t
       WHERE arbgb = lv_msg_id
-      AND   sprsl <> mv_language.       "#EC CI_BYPASS "#EC CI_GENBUFF.
+      AND sprsl <> mv_language.       "#EC CI_BYPASS "#EC CI_GENBUFF
 
     SORT lt_i18n_langs ASCENDING.
 
@@ -246,26 +258,21 @@ CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
-  ENDMETHOD.
-
-
   METHOD zif_abapgit_object~delete.
     DATA: lv_t100a          TYPE t100a,
-          lv_frozen         TYPE flag,
+          lv_frozen         TYPE abap_bool,
           lv_message_id     TYPE arbgb,
           lv_access_granted TYPE abap_bool.
 
 * parameter SUPPRESS_DIALOG doesnt exist in all versions of FM RS_DELETE_MESSAGE_ID
 * replaced with a copy
     lv_message_id = ms_item-obj_name.
-    IF ms_item-obj_name EQ space.
+    IF ms_item-obj_name = space.
       zcx_abapgit_exception=>raise( 'Error from (copy of) RS_DELETE_MESSAGE_ID' )."blank message id
     ENDIF.
 
     SELECT SINGLE * FROM t100a INTO lv_t100a WHERE arbgb = ms_item-obj_name.
-    IF sy-subrc NE 0.
+    IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise( 'Error from (copy of) RS_DELETE_MESSAGE_ID' )."not found
     ENDIF.
 
@@ -282,7 +289,7 @@ CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
       EXCEPTIONS
         OTHERS          = 1.
 
-    IF sy-subrc NE 0 OR lv_frozen NE space.
+    IF sy-subrc <> 0 OR lv_frozen <> space.
       zcx_abapgit_exception=>raise( 'Error from (copy of) RS_DELETE_MESSAGE_ID' )."can't access
     ENDIF.
 
@@ -294,11 +301,12 @@ CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
         object             = lv_message_id
         object_class       = 'MSAG'
         mode               = 'D'
+        suppress_dialog    = abap_true
       EXCEPTIONS
         cancelled          = 01
         permission_failure = 02.
 
-    IF sy-subrc NE 0.
+    IF sy-subrc <> 0.
       IF lv_access_granted = abap_true.
         free_access_permission( lv_message_id ).
       ENDIF.
@@ -331,20 +339,7 @@ CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
     io_xml->read( EXPORTING iv_name = 'T100'
                   CHANGING cg_data = lt_t100 ).
 
-    CALL FUNCTION 'RS_CORR_INSERT'
-      EXPORTING
-        global_lock         = abap_true
-        devclass            = iv_package
-        object              = ls_t100a-arbgb
-        object_class        = 'T100'
-        mode                = 'INSERT'
-      EXCEPTIONS
-        cancelled           = 01
-        permission_failure  = 02
-        unknown_objectclass = 03.
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'Error from RS_CORR_INSERT' ).
-    ENDIF.
+    corr_insert( iv_package ).
 
     SELECT * FROM t100u INTO TABLE lt_before
       WHERE arbgb = ls_t100a-arbgb ORDER BY msgnr. "#EC CI_GENBUFF "#EC CI_BYPASS
@@ -411,13 +406,18 @@ CLASS ZCL_ABAPGIT_OBJECT_MSAG IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~get_metadata.
-    rs_metadata = get_metadata( ).
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_metadata.
+    rs_metadata = get_metadata( ).
   ENDMETHOD.
 
 

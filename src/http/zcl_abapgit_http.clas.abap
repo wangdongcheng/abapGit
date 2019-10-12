@@ -143,7 +143,7 @@ CLASS ZCL_ABAPGIT_HTTP IMPLEMENTATION.
       cl_http_client=>create_by_url(
         EXPORTING
           url                = zcl_abapgit_url=>host( iv_url )
-          ssl_id             = 'ANONYM'
+          ssl_id             = zcl_abapgit_exit=>get_instance( )->get_ssl_id( )
           proxy_host         = lo_proxy_configuration->get_proxy_url( iv_url )
           proxy_service      = lo_proxy_configuration->get_proxy_port( iv_url )
         IMPORTING
@@ -198,10 +198,13 @@ CLASS ZCL_ABAPGIT_HTTP IMPLEMENTATION.
     " Disable internal auth dialog (due to its unclarity)
     li_client->propertytype_logon_popup = if_http_client=>co_disabled.
 
-    zcl_abapgit_login_manager=>load( iv_uri    = iv_url
-                                     ii_client = li_client ).
+    zcl_abapgit_login_manager=>load(
+      iv_uri    = iv_url
+      ii_client = li_client ).
 
-    zcl_abapgit_exit=>get_instance( )->http_client( li_client ).
+    zcl_abapgit_exit=>get_instance( )->http_client(
+      iv_url    = iv_url
+      ii_client = li_client ).
 
     ro_client->send_receive( ).
     IF check_auth_requested( li_client ) = abap_true.

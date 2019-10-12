@@ -16,11 +16,6 @@ CLASS zcl_abapgit_git_branch_list DEFINITION
         VALUE(rs_branch) TYPE zif_abapgit_definitions=>ty_git_branch
       RAISING
         zcx_abapgit_exception .
-    METHODS get_head     " For potential future use
-      RETURNING
-        VALUE(rs_branch) TYPE zif_abapgit_definitions=>ty_git_branch
-      RAISING
-        zcx_abapgit_exception .
     METHODS get_head_symref
       RETURNING
         VALUE(rv_head_symref) TYPE string .
@@ -29,16 +24,11 @@ CLASS zcl_abapgit_git_branch_list DEFINITION
         VALUE(rt_branches) TYPE zif_abapgit_definitions=>ty_git_branch_list_tt
       RAISING
         zcx_abapgit_exception .
-    METHODS get_tags_only     " For potential future use
+    METHODS get_tags_only         " For potential future use
       RETURNING
         VALUE(rt_tags) TYPE zif_abapgit_definitions=>ty_git_branch_list_tt
       RAISING
         zcx_abapgit_exception .
-    CLASS-METHODS is_ignored
-      IMPORTING
-        !iv_branch_name  TYPE clike
-      RETURNING
-        VALUE(rv_ignore) TYPE abap_bool .
     CLASS-METHODS get_display_name
       IMPORTING
         !iv_branch_name        TYPE clike
@@ -47,8 +37,8 @@ CLASS zcl_abapgit_git_branch_list DEFINITION
     CLASS-METHODS get_type
       IMPORTING
         !iv_branch_name       TYPE clike
-        !it_result            TYPE stringtab OPTIONAL
-        !iv_current_row_index TYPE sytabix OPTIONAL
+        !it_result            TYPE string_table OPTIONAL
+        !iv_current_row_index TYPE sy-tabix OPTIONAL
       RETURNING
         VALUE(rv_type)        TYPE zif_abapgit_definitions=>ty_git_branch_type .
     CLASS-METHODS complete_heads_branch_name
@@ -61,6 +51,7 @@ CLASS zcl_abapgit_git_branch_list DEFINITION
         !iv_branch_name TYPE clike
       RETURNING
         VALUE(rv_name)  TYPE string .
+  PROTECTED SECTION.
   PRIVATE SECTION.
 
     DATA mt_branches TYPE zif_abapgit_definitions=>ty_git_branch_list_tt .
@@ -91,6 +82,11 @@ CLASS zcl_abapgit_git_branch_list DEFINITION
         !iv_data              TYPE string
       RETURNING
         VALUE(rv_head_symref) TYPE string .
+    CLASS-METHODS is_ignored
+      IMPORTING
+        !iv_branch_name  TYPE clike
+      RETURNING
+        VALUE(rv_ignore) TYPE abap_bool .
 ENDCLASS.
 
 
@@ -180,17 +176,6 @@ CLASS ZCL_ABAPGIT_GIT_BRANCH_LIST IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD get_head.
-
-    IF mv_head_symref IS NOT INITIAL.
-      rs_branch = find_by_name( mv_head_symref ).
-    ELSE.
-      rs_branch = find_by_name( zif_abapgit_definitions=>c_head_name ).
-    ENDIF.
-
-  ENDMETHOD.
-
-
   METHOD get_head_symref.
     rv_head_symref = mv_head_symref.
   ENDMETHOD.
@@ -212,7 +197,7 @@ CLASS ZCL_ABAPGIT_GIT_BRANCH_LIST IMPLEMENTATION.
 
     DATA: lv_annotated_tag_with_suffix TYPE string.
 
-    FIELD-SYMBOLS: <lv_result> TYPE LINE OF stringtab.
+    FIELD-SYMBOLS: <lv_result> TYPE LINE OF string_table.
 
     rv_type = zif_abapgit_definitions=>c_git_branch_type-other.
 
@@ -333,20 +318,14 @@ CLASS ZCL_ABAPGIT_GIT_BRANCH_LIST IMPLEMENTATION.
   METHOD skip_first_pkt.
 
     DATA: lv_hex    TYPE x LENGTH 1,
-          lv_length TYPE i,
-          lv_0a_pos TYPE i.
+          lv_length TYPE i.
 
 
 * channel
     ASSERT iv_data(2) = '00'.
 
     lv_hex = to_upper( iv_data+2(2) ).
-    lv_0a_pos = lv_hex - 1.
-    IF iv_data+lv_0a_pos(1) = cl_abap_char_utilities=>newline.
-      lv_length = lv_hex.
-    ELSE.
-      lv_length = lv_hex.
-    ENDIF.
+    lv_length = lv_hex.
 
     rv_data = iv_data+lv_length.
 

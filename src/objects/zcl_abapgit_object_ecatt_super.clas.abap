@@ -38,8 +38,8 @@ CLASS zcl_abapgit_object_ecatt_super DEFINITION
     TYPES:
       BEGIN OF ty_last_changed,
         luser TYPE xubname,
-        ldate TYPE datum,
-        ltime TYPE uzeit,
+        ldate TYPE d,
+        ltime TYPE t,
       END OF ty_last_changed.
 
     CONSTANTS:
@@ -132,12 +132,11 @@ CLASS zcl_abapgit_object_ecatt_super DEFINITION
         RAISING
           cx_ecatt
           zcx_abapgit_exception.
-
 ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_ECATT_SUPER IMPLEMENTATION.
 
 
   METHOD clear_attributes.
@@ -214,6 +213,7 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
 
     DATA: ls_object   TYPE etmobjects,
           lo_upload   TYPE REF TO cl_apl_ecatt_upload,
+          li_upload   TYPE REF TO zif_abapgit_ecatt_upload,
           lv_xml      TYPE xstring,
           lv_text     TYPE string,
           li_document TYPE REF TO if_ixml_document,
@@ -226,16 +226,15 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    lo_upload = get_upload( ).
+    lo_upload  = get_upload( ).
+    li_upload ?= lo_upload.
 
     li_document = cl_ixml=>create( )->create_document( ).
     li_document->append_child( ii_version_node->get_first_child( ) ).
 
     lv_xml = cl_ixml_80_20=>render_to_xstring( li_document ).
 
-    CALL METHOD lo_upload->('Z_SET_STREAM_FOR_UPLOAD')
-      EXPORTING
-        iv_xml = lv_xml.
+    li_upload->set_stream_for_upload( lv_xml ).
 
     ls_object-d_obj_name  = mv_object_name.
     ls_object-s_obj_type  = get_object_type( ).
@@ -246,7 +245,7 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
     TRY.
         lo_upload->upload(
           CHANGING
-            ch_object      = ls_object ).
+            ch_object = ls_object ).
 
       CATCH cx_ecatt INTO lx_error.
         lv_text = lx_error->get_text( ).
@@ -269,18 +268,8 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
 
     lv_changed_date_external = ii_document->find_from_name( 'LDATE' )->get_value( ).
 
-    CALL FUNCTION 'CONVERSION_EXIT_RSDAT_INPUT'
-      EXPORTING
-        input        = lv_changed_date_external
-      IMPORTING
-        output       = rv_changed_date
-      EXCEPTIONS
-        invalid_date = 1
-        OTHERS       = 2.
-
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
+    REPLACE ALL OCCURRENCES OF '-' IN lv_changed_date_external WITH ''.
+    rv_changed_date = lv_changed_date_external.
 
   ENDMETHOD.
 
@@ -289,20 +278,10 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
 
     DATA: lv_changed_time_external TYPE string.
 
-    lv_changed_time_external =  ii_document->find_from_name( 'LTIME' )->get_value( ).
+    lv_changed_time_external = ii_document->find_from_name( 'LTIME' )->get_value( ).
 
-    CALL FUNCTION 'CONVERSION_EXIT_TIMLO_INPUT'
-      EXPORTING
-        input       = lv_changed_time_external
-      IMPORTING
-        output      = rv_changed_time
-      EXCEPTIONS
-        wrong_input = 1
-        OTHERS      = 2.
-
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
+    REPLACE ALL OCCURRENCES OF ':' IN lv_changed_time_external WITH ''.
+    rv_changed_time = lv_changed_time_external.
 
   ENDMETHOD.
 
@@ -318,14 +297,11 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
 
     lv_object_type = get_object_type( ).
 
-    zcl_abapgit_ecatt_helper=>build_xml_of_object(
-      EXPORTING
-        im_object_name    = mv_object_name
-        im_object_version = is_version_info-version
-        im_object_type    = lv_object_type
-        io_download       = lo_download
-      IMPORTING
-        ex_xml_stream     = lv_xml ).
+    lv_xml = zcl_abapgit_ecatt_helper=>build_xml_of_object(
+                 im_object_name    = mv_object_name
+                 im_object_version = is_version_info-version
+                 im_object_type    = lv_object_type
+                 io_download       = lo_download ).
 
     li_document = cl_ixml_80_20=>parse_to_document( stream_xstring = lv_xml ).
 
@@ -377,14 +353,15 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
 
     lv_object_type = get_object_type( ).
 
-    zcl_abapgit_ecatt_helper=>build_xml_of_object(
-      EXPORTING
-        im_object_name    = mv_object_name
-        im_object_version = iv_version
-        im_object_type    = lv_object_type
-        io_download       = lo_download
-      IMPORTING
-        ex_xml_stream     = lv_xml ).
+    lv_xml = zcl_abapgit_ecatt_helper=>build_xml_of_object(
+                 im_object_name    = mv_object_name
+                 im_object_version = iv_version
+                 im_object_type    = lv_object_type
+                 io_download       = lo_download ).
+
+    IF lv_xml IS INITIAL.
+      zcx_abapgit_exception=>raise( |ECATT, empty xml, { mv_object_name }| ).
+    ENDIF.
 
     li_document = cl_ixml_80_20=>parse_to_document( stream_xstring = lv_xml ).
 
@@ -402,6 +379,41 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
     ci_node->append_child( lo_node ).
 
   ENDMETHOD.
+
+
+  METHOD serialize_versions.
+
+    DATA: li_versions_node TYPE REF TO if_ixml_element.
+    FIELD-SYMBOLS: <ls_version_info> LIKE LINE OF it_version_info.
+
+    li_versions_node = ci_document->create_element( co_name-versions ).
+
+    IF lines( it_version_info ) > 0.
+
+      LOOP AT it_version_info ASSIGNING <ls_version_info>.
+
+        serialize_version(
+          EXPORTING
+            iv_version = <ls_version_info>-version
+          CHANGING
+            ci_node    = li_versions_node ).
+
+      ENDLOOP.
+
+    ELSE.
+
+      serialize_version(
+        EXPORTING
+          iv_version = co_default_version
+        CHANGING
+          ci_node    = li_versions_node ).
+
+    ENDIF.
+
+    ci_document->append_child( li_versions_node ).
+
+  ENDMETHOD.
+
 
   METHOD zif_abapgit_object~changed_by.
 
@@ -422,7 +434,7 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
             im_name          = mv_object_name
             im_obj_type      = lv_object_type
           IMPORTING
-            ex_version_info  = lt_version_info  ).
+            ex_version_info  = lt_version_info ).
 
         LOOP AT lt_version_info ASSIGNING <ls_version_info>.
 
@@ -430,9 +442,7 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
 
           IF is_change_more_recent_than( is_currently_changed = ls_currently_changed
                                          is_last_changed      = ls_last_changed ) = abap_true.
-
             ls_last_changed = ls_currently_changed.
-
           ENDIF.
 
         ENDLOOP.
@@ -452,11 +462,6 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
 
     ENDIF.
 
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
 
@@ -532,13 +537,37 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~is_active.
+    rv_active = is_active( ).
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~is_locked.
+
+    DATA: lv_object TYPE seqg3-garg.
+
+    lv_object = ms_item-obj_name.
+    OVERLAY lv_object WITH '                              '.
+    lv_object = lv_object && '*'.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = get_lock_object( )
+                                            iv_argument    = lv_object ).
+
   ENDMETHOD.
 
 
@@ -576,18 +605,18 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
     TRY.
         cl_apl_ecatt_object=>get_version_info_object(
           EXPORTING
-            im_name          = mv_object_name
-            im_obj_type      = lv_object_type
+            im_name         = mv_object_name
+            im_obj_type     = lv_object_type
           IMPORTING
-            ex_version_info  = lt_version_info  ).
+            ex_version_info = lt_version_info ).
 
         li_document = cl_ixml=>create( )->create_document( ).
 
         serialize_versions(
           EXPORTING
-            it_version_info  = lt_version_info
+            it_version_info = lt_version_info
           CHANGING
-            ci_document      = li_document ).
+            ci_document     = li_document ).
 
         io_xml->set_raw( li_document->get_root_element( ) ).
 
@@ -597,57 +626,4 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
     ENDTRY.
 
   ENDMETHOD.
-
-
-  METHOD serialize_versions.
-
-    DATA: li_versions_node TYPE REF TO if_ixml_element.
-    FIELD-SYMBOLS: <ls_version_info> LIKE LINE OF it_version_info.
-
-    li_versions_node = ci_document->create_element( co_name-versions ).
-
-    IF lines( it_version_info ) > 0.
-
-      LOOP AT it_version_info ASSIGNING <ls_version_info>.
-
-        serialize_version(
-          EXPORTING
-            iv_version = <ls_version_info>-version
-          CHANGING
-            ci_node    = li_versions_node ).
-
-      ENDLOOP.
-
-    ELSE.
-
-      serialize_version(
-        EXPORTING
-          iv_version = co_default_version
-        CHANGING
-          ci_node    = li_versions_node ).
-
-    ENDIF.
-
-    ci_document->append_child( li_versions_node ).
-
-  ENDMETHOD.
-
-  METHOD zif_abapgit_object~is_locked.
-
-    DATA: lv_object TYPE seqg3-garg.
-
-    lv_object = ms_item-obj_name.
-    OVERLAY lv_object WITH '                              '.
-    lv_object = lv_object && '*'.
-
-    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = get_lock_object( )
-                                            iv_argument    = lv_object ).
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~is_active.
-    rv_active = is_active( ).
-  ENDMETHOD.
 ENDCLASS.
-

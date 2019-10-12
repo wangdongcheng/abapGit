@@ -1,20 +1,24 @@
 CLASS zcl_abapgit_progress DEFINITION
   PUBLIC
   FINAL
-  CREATE PUBLIC .
+  CREATE PROTECTED .
 
   PUBLIC SECTION.
 
-    METHODS show
+    INTERFACES zif_abapgit_progress .
+
+    CLASS-METHODS set_instance
       IMPORTING
-        VALUE(iv_current) TYPE i
-        !iv_text          TYPE csequence .
-    METHODS constructor
+        !ii_progress TYPE REF TO zif_abapgit_progress .
+    CLASS-METHODS get_instance
       IMPORTING
-        !iv_total TYPE i .
+        !iv_total          TYPE i
+      RETURNING
+        VALUE(ri_progress) TYPE REF TO zif_abapgit_progress .
   PROTECTED SECTION.
 
     DATA mv_total TYPE i .
+    CLASS-DATA gi_progress TYPE REF TO zif_abapgit_progress .
 
     METHODS calc_pct
       IMPORTING
@@ -41,24 +45,51 @@ CLASS ZCL_ABAPGIT_PROGRESS IMPLEMENTATION.
 
     IF rv_pct = 100.
       rv_pct = 99.
+    ELSEIF rv_pct = 0.
+      rv_pct = 1.
     ENDIF.
 
   ENDMETHOD.
 
 
-  METHOD constructor.
+  METHOD get_instance.
 
-    mv_total = iv_total.
+* max one progress indicator at a time is supported
+
+    IF gi_progress IS INITIAL.
+      CREATE OBJECT gi_progress TYPE zcl_abapgit_progress.
+    ENDIF.
+
+    gi_progress->set_total( iv_total ).
+
+    ri_progress = gi_progress.
 
   ENDMETHOD.
 
 
-  METHOD show.
+  METHOD set_instance.
 
-    DATA: lv_pct  TYPE i.
-    DATA: lv_time TYPE t.
+    gi_progress = ii_progress.
 
-    CONSTANTS: c_wait_secs TYPE i VALUE 2.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_progress~set_total.
+
+    mv_total = iv_total.
+
+    CLEAR mv_cv_time_next.
+    CLEAR mv_cv_datum_next.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_progress~show.
+
+    DATA: lv_pct  TYPE i,
+          lv_time TYPE t.
+
+    CONSTANTS: lc_wait_secs TYPE i VALUE 2.
 
     GET TIME.
     lv_time = sy-uzeit.
@@ -68,8 +99,9 @@ CLASS ZCL_ABAPGIT_PROGRESS IMPLEMENTATION.
     ENDIF.
 
     "We only do a progress indication if enough time has passed
-    IF lv_time  >= mv_cv_time_next  AND sy-datum = mv_cv_datum_next  OR
-       sy-datum >  mv_cv_datum_next.
+    IF lv_time >= mv_cv_time_next
+        AND sy-datum = mv_cv_datum_next
+        OR sy-datum > mv_cv_datum_next.
 
       lv_pct = calc_pct( iv_current ).
 
@@ -77,7 +109,7 @@ CLASS ZCL_ABAPGIT_PROGRESS IMPLEMENTATION.
         EXPORTING
           percentage = lv_pct
           text       = iv_text.
-      mv_cv_time_next = lv_time + c_wait_secs.
+      mv_cv_time_next = lv_time + lc_wait_secs.
 
     ENDIF.
     IF sy-datum > mv_cv_datum_next.

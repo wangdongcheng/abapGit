@@ -11,8 +11,7 @@ CLASS zcl_abapgit_services_repo DEFINITION
       RETURNING
         VALUE(ro_repo) TYPE REF TO zcl_abapgit_repo_online
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS refresh
       IMPORTING
         !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
@@ -22,42 +21,35 @@ CLASS zcl_abapgit_services_repo DEFINITION
       IMPORTING
         !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS purge
       IMPORTING
         !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS new_offline
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS remote_attach
       IMPORTING
         !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS remote_detach
       IMPORTING
         !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS remote_change
       IMPORTING
         !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS refresh_local_checksums
       IMPORTING
         !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS toggle_favorite
       IMPORTING
         !iv_key TYPE zif_abapgit_persistence=>ty_repo-key
@@ -72,27 +64,25 @@ CLASS zcl_abapgit_services_repo DEFINITION
       IMPORTING
         !iv_repository_key TYPE zif_abapgit_persistence=>ty_value
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS gui_deserialize
       IMPORTING
         !io_repo TYPE REF TO zcl_abapgit_repo
       RAISING
         zcx_abapgit_exception .
+  PROTECTED SECTION.
   PRIVATE SECTION.
 
     CLASS-METHODS popup_overwrite
       CHANGING
         !ct_overwrite TYPE zif_abapgit_definitions=>ty_overwrite_tt
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
     CLASS-METHODS popup_package_overwrite
       CHANGING
         !ct_overwrite TYPE zif_abapgit_definitions=>ty_overwrite_tt
       RAISING
-        zcx_abapgit_exception
-        zcx_abapgit_cancel .
+        zcx_abapgit_exception.
 ENDCLASS.
 
 
@@ -130,7 +120,8 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     ENDTRY.
 
 * and pass decisions to deserialize
-    io_repo->deserialize( ls_checks ).
+    io_repo->deserialize( is_checks = ls_checks
+                          ii_log    = io_repo->create_new_log( 'Pull Log' ) ).
 
   ENDMETHOD.
 
@@ -146,8 +137,10 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     ENDIF.
 
     lo_repo = zcl_abapgit_repo_srv=>get_instance( )->new_offline(
-      iv_url     = ls_popup-url
-      iv_package = ls_popup-package ).
+      iv_url          = ls_popup-url
+      iv_package      = ls_popup-package
+      iv_folder_logic = ls_popup-folder_logic ).
+    lo_repo->rebuild_local_checksums( ).
 
     zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( lo_repo->get_key( ) ). " Set default repo for user
     toggle_favorite( lo_repo->get_key( ) ).
@@ -167,9 +160,12 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     ENDIF.
 
     ro_repo = zcl_abapgit_repo_srv=>get_instance( )->new_online(
-      iv_url         = ls_popup-url
-      iv_branch_name = ls_popup-branch_name
-      iv_package     = ls_popup-package ).
+      iv_url          = ls_popup-url
+      iv_branch_name  = ls_popup-branch_name
+      iv_package      = ls_popup-package
+      iv_display_name = ls_popup-display_name
+      iv_folder_logic = ls_popup-folder_logic
+      iv_ign_subpkg   = ls_popup-ign_subpkg ).
 
     toggle_favorite( ro_repo->get_key( ) ).
 
@@ -196,7 +192,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
 
   METHOD popup_overwrite.
 
-    DATA: lt_columns  TYPE stringtab,
+    DATA: lt_columns  TYPE string_table,
           lt_selected LIKE ct_overwrite,
           lv_column   LIKE LINE OF lt_columns,
           li_popups   TYPE REF TO zif_abapgit_popups.
@@ -217,18 +213,18 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     li_popups->popup_to_select_from_list(
       EXPORTING
         it_list               = ct_overwrite
-        iv_header_text         = |The following Objects have been modified locally.|
-                            && | Select the Objects which should be overwritten.|
-        iv_select_column_text  = 'Overwrite?'
+        iv_header_text        = |The following objects have been modified locally.|
+                             && | Select the objects which should be overwritten.|
+        iv_select_column_text = 'Overwrite?'
         it_columns_to_display = lt_columns
       IMPORTING
         et_list               = lt_selected ).
 
     LOOP AT ct_overwrite ASSIGNING <ls_overwrite>.
-      READ TABLE lt_selected WITH KEY
-        obj_type = <ls_overwrite>-obj_type
-        obj_name = <ls_overwrite>-obj_name
-        TRANSPORTING NO FIELDS.
+      READ TABLE lt_selected WITH TABLE KEY object_type_and_name
+                             COMPONENTS obj_type = <ls_overwrite>-obj_type
+                                        obj_name = <ls_overwrite>-obj_name
+                             TRANSPORTING NO FIELDS.
       IF sy-subrc = 0.
         <ls_overwrite>-decision = 'Y'.
       ELSE.
@@ -241,37 +237,46 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
 
   METHOD popup_package_overwrite.
 
-    DATA: lv_question TYPE c LENGTH 200,
-          lv_answer   TYPE c.
+    DATA: lt_colums_to_display TYPE string_table,
+          lv_column            LIKE LINE OF lt_colums_to_display,
+          lt_selected          LIKE ct_overwrite,
+          li_popups            TYPE REF TO zif_abapgit_popups.
 
     FIELD-SYMBOLS: <ls_overwrite> LIKE LINE OF ct_overwrite.
-
 
     IF lines( ct_overwrite ) = 0.
       RETURN.
     ENDIF.
 
+    lv_column = 'OBJ_TYPE'.
+    INSERT lv_column INTO TABLE lt_colums_to_display.
+    lv_column = 'OBJ_NAME'.
+    INSERT lv_column INTO TABLE lt_colums_to_display.
+    lv_column = 'DEVCLASS'.
+    INSERT lv_column INTO TABLE lt_colums_to_display.
+
+    li_popups = zcl_abapgit_ui_factory=>get_popups( ).
+    li_popups->popup_to_select_from_list(
+      EXPORTING
+        it_list               = ct_overwrite
+        iv_header_text        = |The following objects have been created in other packages.|
+                             && | Select the objects which should be overwritten.|
+        iv_select_column_text = |Overwrite?|
+        it_columns_to_display = lt_colums_to_display
+      IMPORTING
+        et_list               = lt_selected ).
+
     LOOP AT ct_overwrite ASSIGNING <ls_overwrite>.
-      CONCATENATE 'Overwrite object' <ls_overwrite>-obj_type <ls_overwrite>-obj_name
-        'from package' <ls_overwrite>-devclass
-        INTO lv_question SEPARATED BY space.                "#EC NOTEXT
 
-      lv_answer = zcl_abapgit_ui_factory=>get_popups( )->popup_to_confirm(
-        iv_titlebar              = 'Warning'
-        iv_text_question         = lv_question
-        iv_text_button_1         = 'Ok'
-        iv_icon_button_1         = 'ICON_DELETE'
-        iv_text_button_2         = 'Cancel'
-        iv_icon_button_2         = 'ICON_CANCEL'
-        iv_default_button        = '2'
-        iv_display_cancel_button = abap_false ).               "#EC NOTEXT
-
-      IF lv_answer = '2'.
-        RAISE EXCEPTION TYPE zcx_abapgit_cancel.
+      READ TABLE lt_selected WITH TABLE KEY object_type_and_name
+                             COMPONENTS obj_type = <ls_overwrite>-obj_type
+                                        obj_name = <ls_overwrite>-obj_name
+                             TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        <ls_overwrite>-decision = 'Y'.
+      ELSE.
+        <ls_overwrite>-decision = 'N'.
       ENDIF.
-
-* todo, let the user decide yes/no/cancel
-      <ls_overwrite>-decision = 'Y'.
 
     ENDLOOP.
 
@@ -306,7 +311,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
         iv_text_button_2         = 'Cancel'
         iv_icon_button_2         = 'ICON_CANCEL'
         iv_default_button        = '2'
-        iv_display_cancel_button = abap_false ).               "#EC NOTEXT
+        iv_display_cancel_button = abap_false ).            "#EC NOTEXT
 
       IF lv_answer = '2'.
         RAISE EXCEPTION TYPE zcx_abapgit_cancel.
@@ -317,7 +322,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     ls_checks = lo_repo->delete_checks( ).
     IF ls_checks-transport-required = abap_true.
       ls_checks-transport-transport = zcl_abapgit_ui_factory=>get_popups(
-                                        )->popup_transport_request(  ls_checks-transport-type ).
+                                        )->popup_transport_request( ls_checks-transport-type ).
     ENDIF.
 
     zcl_abapgit_repo_srv=>get_instance( )->purge( io_repo   = lo_repo
@@ -348,7 +353,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
 
     lo_repo = zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
 
-    lv_question =  'This will rebuild and overwrite local repo checksums.'.
+    lv_question = 'This will rebuild and overwrite local repo checksums.'.
 
     IF lo_repo->is_offline( ) = abap_false.
       lv_question = lv_question
@@ -367,7 +372,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
       iv_text_button_2         = 'Cancel'
       iv_icon_button_2         = 'ICON_CANCEL'
       iv_default_button        = '2'
-      iv_display_cancel_button = abap_false ).                 "#EC NOTEXT
+      iv_display_cancel_button = abap_false ).              "#EC NOTEXT
 
     IF lv_answer = '2'.
       RAISE EXCEPTION TYPE zcx_abapgit_cancel.
@@ -383,24 +388,29 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
   METHOD remote_attach.
 
     DATA: ls_popup TYPE zif_abapgit_popups=>ty_popup,
+          ls_loc   TYPE zif_abapgit_persistence=>ty_repo-local_settings,
           lo_repo  TYPE REF TO zcl_abapgit_repo_online.
+
+    ls_loc = zcl_abapgit_repo_srv=>get_instance( )->get( iv_key )->get_local_settings( ).
 
     ls_popup = zcl_abapgit_ui_factory=>get_popups( )->repo_popup(
       iv_title          = 'Attach repo to remote ...'
       iv_url            = ''
+      iv_display_name   = ls_loc-display_name
       iv_package        = zcl_abapgit_repo_srv=>get_instance( )->get( iv_key )->get_package( )
       iv_freeze_package = abap_true ).
     IF ls_popup-cancel = abap_true.
       RAISE EXCEPTION TYPE zcx_abapgit_cancel.
     ENDIF.
 
-    zcl_abapgit_repo_srv=>get_instance( )->switch_repo_type(
-      iv_key = iv_key
-      iv_offline = abap_false ).
-
+    zcl_abapgit_repo_srv=>get_instance( )->get( iv_key )->switch_repo_type( iv_offline = abap_false ).
     lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
     lo_repo->set_url( ls_popup-url ).
     lo_repo->set_branch_name( ls_popup-branch_name ).
+
+    ls_loc = lo_repo->get_local_settings( ). " Just in case ... if switch affects LS state
+    ls_loc-display_name = ls_popup-display_name.
+    lo_repo->set_local_settings( ls_loc ).
 
     COMMIT WORK.
 
@@ -410,14 +420,17 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
   METHOD remote_change.
 
     DATA: ls_popup TYPE zif_abapgit_popups=>ty_popup,
+          ls_loc   TYPE zif_abapgit_persistence=>ty_repo-local_settings,
           lo_repo  TYPE REF TO zcl_abapgit_repo_online.
 
     lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
+    ls_loc = lo_repo->get_local_settings( ).
 
     ls_popup = zcl_abapgit_ui_factory=>get_popups( )->repo_popup(
       iv_title          = 'Change repo remote ...'
       iv_url            = lo_repo->get_url( )
       iv_package        = lo_repo->get_package( )
+      iv_display_name   = ls_loc-display_name
       iv_freeze_package = abap_true ).
     IF ls_popup-cancel = abap_true.
       RAISE EXCEPTION TYPE zcx_abapgit_cancel.
@@ -426,6 +439,9 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
     lo_repo->set_url( ls_popup-url ).
     lo_repo->set_branch_name( ls_popup-branch_name ).
+
+    ls_loc-display_name = ls_popup-display_name.
+    lo_repo->set_local_settings( ls_loc ).
 
     COMMIT WORK.
 
@@ -444,13 +460,13 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
       iv_text_button_2         = 'Cancel'
       iv_icon_button_2         = 'ICON_CANCEL'
       iv_default_button        = '2'
-      iv_display_cancel_button = abap_false ).                 "#EC NOTEXT
+      iv_display_cancel_button = abap_false ).              "#EC NOTEXT
 
     IF lv_answer = '2'.
       RAISE EXCEPTION TYPE zcx_abapgit_cancel.
     ENDIF.
 
-    zcl_abapgit_repo_srv=>get_instance( )->switch_repo_type( iv_key = iv_key  iv_offline = abap_true ).
+    zcl_abapgit_repo_srv=>get_instance( )->get( iv_key )->switch_repo_type( iv_offline = abap_true ).
 
     COMMIT WORK.
 
@@ -478,7 +494,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
       iv_text_button_2         = 'Cancel'
       iv_icon_button_2         = 'ICON_CANCEL'
       iv_default_button        = '2'
-      iv_display_cancel_button = abap_false ).                 "#EC NOTEXT
+      iv_display_cancel_button = abap_false ).              "#EC NOTEXT
 
     IF lv_answer = '2'.
       RAISE EXCEPTION TYPE zcx_abapgit_cancel.

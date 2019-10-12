@@ -11,6 +11,8 @@ CLASS zcl_abapgit_object_sicf DEFINITION
     ALIASES mo_files
       FOR zif_abapgit_object~mo_files .
 
+    TYPES: ty_hash TYPE c LENGTH 25.
+
     CLASS-METHODS read_tadir_sicf
       IMPORTING
         !iv_pgmid       TYPE tadir-pgmid DEFAULT 'R3TR'
@@ -23,9 +25,10 @@ CLASS zcl_abapgit_object_sicf DEFINITION
       IMPORTING
         !iv_obj_name   TYPE tadir-obj_name
       RETURNING
-        VALUE(rv_hash) TYPE text25
+        VALUE(rv_hash) TYPE ty_hash
       RAISING
         zcx_abapgit_exception .
+  PROTECTED SECTION.
   PRIVATE SECTION.
 
     TYPES:
@@ -80,7 +83,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_sicf IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_SICF IMPLEMENTATION.
 
 
   METHOD change_sicf.
@@ -199,6 +202,7 @@ CLASS zcl_abapgit_object_sicf IMPLEMENTATION.
         application               = space
         icfserdesc                = ls_icfserdesc
         icfactive                 = abap_true
+        icfaltnme                 = is_icfservice-icfaltnme
       EXCEPTIONS
         empty_icf_name            = 1
         no_new_virtual_host       = 2
@@ -327,7 +331,7 @@ CLASS zcl_abapgit_object_sicf IMPLEMENTATION.
 * note: this method is called dynamically from some places
 
     DATA: lt_tadir    TYPE zif_abapgit_definitions=>ty_tadir_tt,
-          lv_hash     TYPE text25,
+          lv_hash     TYPE ty_hash,
           lv_obj_name TYPE tadir-obj_name.
 
     FIELD-SYMBOLS: <ls_tadir> LIKE LINE OF lt_tadir.
@@ -385,11 +389,6 @@ CLASS zcl_abapgit_object_sicf IMPLEMENTATION.
       rv_user = c_user_unknown.
     ENDIF.
 
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
 
@@ -503,13 +502,18 @@ CLASS zcl_abapgit_object_sicf IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~get_metadata.
-    rs_metadata = get_metadata( ).
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_metadata.
+    rs_metadata = get_metadata( ).
   ENDMETHOD.
 
 
@@ -590,6 +594,7 @@ CLASS zcl_abapgit_object_sicf IMPLEMENTATION.
     CLEAR ls_icfservice-icf_user.
     CLEAR ls_icfservice-icf_cclnt.
     CLEAR ls_icfservice-icf_mclnt.
+    CLEAR ls_icfservice-icfaltnme_orig.
 
     io_xml->add( iv_name = 'URL'
                  ig_data = lv_url ).

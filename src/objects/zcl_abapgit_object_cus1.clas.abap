@@ -9,6 +9,7 @@ CLASS zcl_abapgit_object_cus1 DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
         is_item     TYPE zif_abapgit_definitions=>ty_item
         iv_language TYPE spras.
 
+  PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES: tty_activity_titles TYPE STANDARD TABLE OF cus_actt
                                     WITH NON-UNIQUE DEFAULT KEY,
@@ -31,7 +32,10 @@ CLASS zcl_abapgit_object_cus1 DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
 ENDCLASS.
 
-CLASS zcl_abapgit_object_cus1 IMPLEMENTATION.
+
+
+CLASS ZCL_ABAPGIT_OBJECT_CUS1 IMPLEMENTATION.
+
 
   METHOD constructor.
 
@@ -42,37 +46,11 @@ CLASS zcl_abapgit_object_cus1 IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
-  ENDMETHOD.
 
   METHOD zif_abapgit_object~changed_by.
     rv_user = c_user_unknown.
   ENDMETHOD.
 
-  METHOD zif_abapgit_object~get_metadata.
-    rs_metadata = get_metadata( ).
-    rs_metadata-delete_tadir = abap_true.
-  ENDMETHOD.
-
-  METHOD zif_abapgit_object~jump.
-
-    zcx_abapgit_exception=>raise( |TODO: Jump| ).
-
-  ENDMETHOD.
-
-  METHOD zif_abapgit_object~exists.
-
-    CALL FUNCTION 'S_CUS_ACTIVITY_EXIST'
-      EXPORTING
-        activity            = mv_customizing_activity
-      EXCEPTIONS
-        activity_exists_not = 1
-        OTHERS              = 2.
-
-    rv_bool = boolc( sy-subrc = 0 ).
-
-  ENDMETHOD.
 
   METHOD zif_abapgit_object~delete.
 
@@ -90,30 +68,6 @@ CLASS zcl_abapgit_object_cus1 IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD zif_abapgit_object~serialize.
-
-    DATA: ls_customzing_activity TYPE ty_customzing_activity.
-
-    CALL FUNCTION 'S_CUS_ACTIVITY_READ'
-      EXPORTING
-        activity               = mv_customizing_activity
-      IMPORTING
-        activity_header        = ls_customzing_activity-activity_header
-        activity_customer_exit = ls_customzing_activity-activity_customer_exit
-      TABLES
-        activity_title         = ls_customzing_activity-activity_title
-        objects                = ls_customzing_activity-objects
-        objects_title          = ls_customzing_activity-objects_title.
-
-    CLEAR: ls_customzing_activity-activity_header-fdatetime,
-           ls_customzing_activity-activity_header-fuser,
-           ls_customzing_activity-activity_header-ldatetime,
-           ls_customzing_activity-activity_header-luser.
-
-    io_xml->add( iv_name = 'CUS1'
-                 ig_data = ls_customzing_activity ).
-
-  ENDMETHOD.
 
   METHOD zif_abapgit_object~deserialize.
 
@@ -153,6 +107,7 @@ CLASS zcl_abapgit_object_cus1 IMPLEMENTATION.
         global_lock         = abap_true
         devclass            = iv_package
         master_language     = sy-langu
+        suppress_dialog     = abap_true
       EXCEPTIONS
         cancelled           = 1
         permission_failure  = 2
@@ -164,17 +119,76 @@ CLASS zcl_abapgit_object_cus1 IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
+
+  METHOD zif_abapgit_object~exists.
+
+    CALL FUNCTION 'S_CUS_ACTIVITY_EXIST'
+      EXPORTING
+        activity            = mv_customizing_activity
+      EXCEPTIONS
+        activity_exists_not = 1
+        OTHERS              = 2.
+
+    rv_bool = boolc( sy-subrc = 0 ).
+
   ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_metadata.
+    rs_metadata = get_metadata( ).
+    rs_metadata-delete_tadir = abap_true.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~is_active.
+    rv_active = abap_true.
+  ENDMETHOD.
+
 
   METHOD zif_abapgit_object~is_locked.
     rv_is_locked = abap_false.
   ENDMETHOD.
 
 
-METHOD zif_abapgit_object~is_active.
-    rv_active = abap_true.
+  METHOD zif_abapgit_object~jump.
+
+    zcx_abapgit_exception=>raise( |TODO: Jump| ).
+
   ENDMETHOD.
 
+
+  METHOD zif_abapgit_object~serialize.
+
+    DATA: ls_customzing_activity TYPE ty_customzing_activity.
+
+    CALL FUNCTION 'S_CUS_ACTIVITY_READ'
+      EXPORTING
+        activity               = mv_customizing_activity
+      IMPORTING
+        activity_header        = ls_customzing_activity-activity_header
+        activity_customer_exit = ls_customzing_activity-activity_customer_exit
+      TABLES
+        activity_title         = ls_customzing_activity-activity_title
+        objects                = ls_customzing_activity-objects
+        objects_title          = ls_customzing_activity-objects_title.
+
+    CLEAR: ls_customzing_activity-activity_header-fdatetime,
+           ls_customzing_activity-activity_header-fuser,
+           ls_customzing_activity-activity_header-ldatetime,
+           ls_customzing_activity-activity_header-luser.
+
+    io_xml->add( iv_name = 'CUS1'
+                 ig_data = ls_customzing_activity ).
+
+  ENDMETHOD.
 ENDCLASS.

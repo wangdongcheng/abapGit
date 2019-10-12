@@ -4,10 +4,11 @@ CLASS zcl_abapgit_object_ssfo DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
     INTERFACES zif_abapgit_object.
     ALIASES mo_files FOR zif_abapgit_object~mo_files.
 
+  PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES: ty_string_range TYPE RANGE OF string.
 
-    CLASS-DATA: range_node_codes TYPE ty_string_range.
+    CLASS-DATA: gt_range_node_codes TYPE ty_string_range.
     CONSTANTS: attrib_abapgit_leadig_spaces TYPE string VALUE 'abapgit-leadig-spaces' ##NO_TEXT.
 
     METHODS fix_ids IMPORTING ii_xml_doc TYPE REF TO if_ixml_document.
@@ -31,15 +32,15 @@ CLASS ZCL_ABAPGIT_OBJECT_SSFO IMPLEMENTATION.
 
 
   METHOD code_item_section_handling.
-    CONSTANTS: node_item TYPE string VALUE 'item' ##NO_TEXT.
-    CONSTANTS: node_text TYPE string VALUE '#text' ##NO_TEXT.
+    CONSTANTS: lc_node_item TYPE string VALUE 'item' ##NO_TEXT.
+    CONSTANTS: lc_node_text TYPE string VALUE '#text' ##NO_TEXT.
 
     IF iv_name IN get_range_node_codes( ).
       cv_within_code_section = abap_true.
     ENDIF.
 
     IF cv_within_code_section = abap_true.
-      IF iv_name = node_item.
+      IF iv_name = lc_node_item.
         TRY.
             ei_code_item_element ?= ii_node.
             RETURN.
@@ -47,7 +48,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SSFO IMPLEMENTATION.
         ENDTRY.
 
       ELSEIF iv_name NOT IN get_range_node_codes( ) AND
-             iv_name <> node_text.
+             iv_name <> lc_node_text.
         cv_within_code_section = abap_false.
       ENDIF.
     ENDIF.
@@ -134,20 +135,20 @@ CLASS ZCL_ABAPGIT_OBJECT_SSFO IMPLEMENTATION.
 
     DATA: ls_range_node_code TYPE LINE OF ty_string_range.
 
-    IF me->range_node_codes IS INITIAL.
+    IF me->gt_range_node_codes IS INITIAL.
       ls_range_node_code-sign   = 'I'.
       ls_range_node_code-option = 'EQ'.
       ls_range_node_code-low    = 'CODE'.
-      INSERT ls_range_node_code INTO TABLE me->range_node_codes.
+      INSERT ls_range_node_code INTO TABLE me->gt_range_node_codes.
       ls_range_node_code-low    = 'GTYPES'.
-      INSERT ls_range_node_code INTO TABLE me->range_node_codes.
+      INSERT ls_range_node_code INTO TABLE me->gt_range_node_codes.
       ls_range_node_code-low    = 'GCODING'.
-      INSERT ls_range_node_code INTO TABLE me->range_node_codes.
+      INSERT ls_range_node_code INTO TABLE me->gt_range_node_codes.
       ls_range_node_code-low    = 'FCODING'.
-      INSERT ls_range_node_code INTO TABLE me->range_node_codes.
+      INSERT ls_range_node_code INTO TABLE me->gt_range_node_codes.
     ENDIF.
 
-    rt_range_node_codes = me->range_node_codes.
+    rt_range_node_codes = me->gt_range_node_codes.
 
   ENDMETHOD.
 
@@ -164,12 +165,15 @@ CLASS ZCL_ABAPGIT_OBJECT_SSFO IMPLEMENTATION.
                                     IMPORTING ei_code_item_element   = li_element
                                     CHANGING  cv_within_code_section = cv_within_code_section ).
 
+* for downwards compatibility, this code can be removed sometime in the future
         lv_leading_spaces = li_element->get_attribute_ns(
           name = zcl_abapgit_object_ssfo=>attrib_abapgit_leadig_spaces ).
 
         lv_coding_line = li_element->get_value( ).
-        SHIFT lv_coding_line RIGHT BY lv_leading_spaces PLACES.
-        li_element->set_value( lv_coding_line ).
+        IF strlen( lv_coding_line ) >= 1 AND lv_coding_line(1) <> | |.
+          SHIFT lv_coding_line RIGHT BY lv_leading_spaces PLACES.
+          li_element->set_value( lv_coding_line ).
+        ENDIF.
       CATCH zcx_abapgit_exception ##no_handler.
     ENDTRY.
 
@@ -178,30 +182,30 @@ CLASS ZCL_ABAPGIT_OBJECT_SSFO IMPLEMENTATION.
 
   METHOD set_attribute_leading_spaces.
 
-    DATA: li_element             TYPE REF TO if_ixml_element.
-    DATA: lv_code_line           TYPE string.
-    DATA: lv_offset              TYPE i.
-
-    TRY.
-        code_item_section_handling( EXPORTING iv_name                = iv_name
-                                              ii_node                = ii_node
-                                    IMPORTING ei_code_item_element   = li_element
-                                    CHANGING  cv_within_code_section = cv_within_code_section ).
-
-        lv_code_line = ii_node->get_value( ).
-        "find 1st non space char
-        FIND FIRST OCCURRENCE OF REGEX '\S' IN lv_code_line MATCH OFFSET lv_offset.
-        IF sy-subrc = 0 AND lv_offset > 0.
-          TRY.
-              li_element ?= ii_node.
-              li_element->set_attribute( name  = zcl_abapgit_object_ssfo=>attrib_abapgit_leadig_spaces
-                                      value = |{ lv_offset }| ).
-
-            CATCH cx_sy_move_cast_error ##no_handler.
-          ENDTRY.
-        ENDIF.
-      CATCH zcx_abapgit_exception ##no_handler.
-    ENDTRY.
+*    DATA: li_element             TYPE REF TO if_ixml_element.
+*    DATA: lv_code_line           TYPE string.
+*    DATA: lv_offset              TYPE i.
+*
+*    TRY.
+*        code_item_section_handling( EXPORTING iv_name                = iv_name
+*                                              ii_node                = ii_node
+*                                    IMPORTING ei_code_item_element   = li_element
+*                                    CHANGING  cv_within_code_section = cv_within_code_section ).
+*
+*        lv_code_line = ii_node->get_value( ).
+*        "find 1st non space char
+*        FIND FIRST OCCURRENCE OF REGEX '\S' IN lv_code_line MATCH OFFSET lv_offset.
+*        IF sy-subrc = 0 AND lv_offset > 0.
+*          TRY.
+*              li_element ?= ii_node.
+*              li_element->set_attribute( name  = zcl_abapgit_object_ssfo=>attrib_abapgit_leadig_spaces
+*                                      value = |{ lv_offset }| ).
+*
+*            CATCH cx_sy_move_cast_error ##no_handler.
+*          ENDTRY.
+*        ENDIF.
+*      CATCH zcx_abapgit_exception ##no_handler.
+*    ENDTRY.
 
   ENDMETHOD.
 
@@ -214,11 +218,6 @@ CLASS ZCL_ABAPGIT_OBJECT_SSFO IMPLEMENTATION.
       rv_user = c_user_unknown.
     ENDIF.
 
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
 
@@ -322,14 +321,19 @@ CLASS ZCL_ABAPGIT_OBJECT_SSFO IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~get_metadata.
-    rs_metadata = get_metadata( ).
-    rs_metadata-delete_tadir = abap_true.
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_metadata.
+    rs_metadata = get_metadata( ).
+    rs_metadata-delete_tadir = abap_true.
   ENDMETHOD.
 
 

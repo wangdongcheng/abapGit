@@ -10,6 +10,7 @@ CLASS zcl_abapgit_object_suso DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
           is_item     TYPE zif_abapgit_definitions=>ty_item
           iv_language TYPE spras.
 
+  PROTECTED SECTION.
   PRIVATE SECTION.
     DATA:
       mv_objectname TYPE tobj-objct.
@@ -27,7 +28,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_suso IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_SUSO IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -83,7 +84,7 @@ CLASS zcl_abapgit_object_suso IMPLEMENTATION.
   METHOD pre_check.
 
     CONSTANTS:
-      co_act_delete TYPE activ_auth VALUE '06'.
+      lc_act_delete TYPE activ_auth VALUE '06'.
 
     DATA:
       lv_act_head            TYPE activ_auth,
@@ -130,12 +131,12 @@ CLASS zcl_abapgit_object_suso IMPLEMENTATION.
       CALL METHOD lo_suso->('GET_SUSO_EDIT_MODE')
         EXPORTING
           id_object     = mv_objectname
-          id_planed_act = co_act_delete
+          id_planed_act = lc_act_delete
         IMPORTING
           ed_mode_head  = lv_act_head.
 
-      IF lv_act_head <> co_act_delete.
-        zcx_abapgit_exception=>raise( |AUTH { mv_objectname }: Delete not allowed| ).
+      IF lv_act_head <> lc_act_delete.
+        zcx_abapgit_exception=>raise( |SUSO { mv_objectname }: Delete not allowed| ).
       ENDIF.
 
       CALL METHOD lo_suso->('SUSO_COLLECT_IN_CTS')
@@ -145,7 +146,7 @@ CLASS zcl_abapgit_object_suso IMPLEMENTATION.
           ed_result = lv_suso_collect_in_cts.
 
       IF lv_suso_collect_in_cts IS NOT INITIAL.
-        zcx_abapgit_exception=>raise( |AUTH { mv_objectname }: Cannot delete| ).
+        zcx_abapgit_exception=>raise( |SUSO { mv_objectname }: Cannot delete| ).
       ENDIF.
 
     ENDIF.
@@ -155,11 +156,6 @@ CLASS zcl_abapgit_object_suso IMPLEMENTATION.
 
   METHOD zif_abapgit_object~changed_by.
     rv_user = c_user_unknown. " todo
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
 
@@ -253,13 +249,23 @@ CLASS zcl_abapgit_object_suso IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~is_active.
+    rv_active = is_active( ).
   ENDMETHOD.
 
 
@@ -332,10 +338,5 @@ CLASS zcl_abapgit_object_suso IMPLEMENTATION.
     io_xml->add( ig_data = lt_tobjvor
                  iv_name = 'TOBJVOR' ).
 
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~is_active.
-    rv_active = is_active( ).
   ENDMETHOD.
 ENDCLASS.

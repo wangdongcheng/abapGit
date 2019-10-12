@@ -56,7 +56,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_w3super IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_W3SUPER IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -89,9 +89,10 @@ CLASS zcl_abapgit_object_w3super IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD get_metadata. "Redefinition
-    rs_metadata         = super->get_metadata( ).
-    rs_metadata-version = 'v2.0.0'. " Seriazation v2, separate data file
+  METHOD get_metadata.
+    rs_metadata              = super->get_metadata( ).
+    rs_metadata-version      = 'v2.0.0'. " Serialization v2, separate data file
+    rs_metadata-delete_tadir = abap_true.
   ENDMETHOD.
 
 
@@ -139,18 +140,13 @@ CLASS zcl_abapgit_object_w3super IMPLEMENTATION.
     SELECT SINGLE chname INTO rv_user
       FROM wwwdata
       WHERE relid = ms_key-relid
-      AND   objid = ms_key-objid
-      AND   srtf2 = 0.
+      AND objid = ms_key-objid
+      AND srtf2 = 0.
 
     IF sy-subrc IS NOT INITIAL OR rv_user IS INITIAL.
       rv_user = c_user_unknown.
     ENDIF.
 
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
   ENDMETHOD.
 
 
@@ -327,8 +323,8 @@ CLASS zcl_abapgit_object_w3super IMPLEMENTATION.
     SELECT SINGLE objid INTO ms_key-objid
       FROM wwwdata
       WHERE relid = ms_key-relid
-      AND   objid = ms_key-objid
-      AND   srtf2 = 0.
+      AND objid = ms_key-objid
+      AND srtf2 = 0.
 
     IF sy-subrc IS NOT INITIAL.
       RETURN.
@@ -339,13 +335,37 @@ CLASS zcl_abapgit_object_w3super IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~is_active.
+    rv_active = is_active( ).
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~is_locked.
+
+    DATA: lv_object TYPE eqegraarg.
+
+    lv_object = |{ ms_item-obj_type+2(2) }{ ms_item-obj_name }|.
+    OVERLAY lv_object WITH '                                          '.
+    lv_object = lv_object && '*'.
+
+    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'E_WWW_HTML'
+                                            iv_argument    = lv_object ).
+
   ENDMETHOD.
 
 
@@ -411,8 +431,8 @@ CLASS zcl_abapgit_object_w3super IMPLEMENTATION.
     SELECT SINGLE * INTO CORRESPONDING FIELDS OF ms_key
       FROM wwwdata
       WHERE relid = ms_key-relid
-      AND   objid = ms_key-objid
-      AND   srtf2 = 0.
+      AND objid = ms_key-objid
+      AND srtf2 = 0.
 
     IF sy-subrc IS NOT INITIAL.
       RETURN.
@@ -490,23 +510,5 @@ CLASS zcl_abapgit_object_w3super IMPLEMENTATION.
                                   iv_extra = 'data'
                                   iv_ext   = get_ext( lt_w3params ) ).
 
-  ENDMETHOD.
-
-  METHOD zif_abapgit_object~is_locked.
-
-    DATA: lv_object TYPE eqegraarg.
-
-    lv_object = |{ ms_item-obj_type+2(2) }{ ms_item-obj_name }|.
-    OVERLAY lv_object WITH '                                          '.
-    lv_object = lv_object && '*'.
-
-    rv_is_locked = exists_a_lock_entry_for( iv_lock_object = 'E_WWW_HTML'
-                                            iv_argument    = lv_object ).
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_object~is_active.
-    rv_active = is_active( ).
   ENDMETHOD.
 ENDCLASS.

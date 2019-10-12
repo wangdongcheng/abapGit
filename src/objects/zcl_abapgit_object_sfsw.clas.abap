@@ -3,18 +3,22 @@ CLASS zcl_abapgit_object_sfsw DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
 
+  PROTECTED SECTION.
   PRIVATE SECTION.
     METHODS:
       get
         RETURNING VALUE(ro_switch) TYPE REF TO cl_sfw_sw
         RAISING   zcx_abapgit_exception,
-      wait_for_background_job.
+      wait_for_background_job,
+      wait_for_deletion
+        RAISING
+          zcx_abapgit_exception.
 
 ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_sfsw IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_SFSW IMPLEMENTATION.
 
 
   METHOD get.
@@ -28,6 +32,49 @@ CLASS zcl_abapgit_object_sfsw IMPLEMENTATION.
       CATCH cx_pak_invalid_data cx_pak_invalid_state cx_pak_not_authorized.
         zcx_abapgit_exception=>raise( 'Error from CL_SFW_SW=>GET_SWITCH' ).
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD wait_for_background_job.
+
+    DATA: lv_job_count TYPE tbtco-jobcount.
+
+    " We wait for at most 5 seconds. If it takes
+    " more than that it probably doesn't matter,
+    " because we have other problems
+
+    DO 5 TIMES.
+
+      SELECT SINGLE jobcount
+        FROM tbtco
+        INTO lv_job_count
+        WHERE jobname = 'SFW_DELETE_SWITCH'
+        AND status = 'R'
+        AND sdluname = sy-uname.
+
+      IF sy-subrc = 0.
+        WAIT UP TO 1 SECONDS.
+      ELSE.
+        EXIT.
+      ENDIF.
+
+    ENDDO.
+
+  ENDMETHOD.
+
+
+  METHOD wait_for_deletion.
+
+    DO 5 TIMES.
+
+      IF zif_abapgit_object~exists( ) = abap_true.
+        WAIT UP TO 1 SECONDS.
+      ELSE.
+        EXIT.
+      ENDIF.
+
+    ENDDO.
 
   ENDMETHOD.
 
@@ -47,11 +94,6 @@ CLASS zcl_abapgit_object_sfsw IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~compare_to_remote_version.
-    CREATE OBJECT ro_comparison_result TYPE zcl_abapgit_comparison_null.
-  ENDMETHOD.
-
-
   METHOD zif_abapgit_object~delete.
 
     DATA: lv_switch_id TYPE sfw_switch_id,
@@ -64,8 +106,11 @@ CLASS zcl_abapgit_object_sfsw IMPLEMENTATION.
         lo_switch->set_delete_flag( lv_switch_id ).
         lo_switch->save_all( ).
 
-        " deletion via background job. Wait until the job is finished.
+        " deletion via background job. Wait until the job is finished...
         wait_for_background_job( ).
+
+        " ... the object is deleted
+        wait_for_deletion( ).
 
       CATCH cx_pak_invalid_data cx_pak_invalid_state cx_pak_not_authorized.
         zcx_abapgit_exception=>raise( 'Error deleting Switch' ).
@@ -154,14 +199,19 @@ CLASS zcl_abapgit_object_sfsw IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~get_metadata.
-    rs_metadata = get_metadata( ).
-    rs_metadata-ddic = abap_true.
+  METHOD zif_abapgit_object~get_comparator.
+    RETURN.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~has_changed_since.
-    rv_changed = abap_true.
+  METHOD zif_abapgit_object~get_deserialize_steps.
+    APPEND zif_abapgit_object=>gc_step_id-ddic TO rt_steps.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_object~get_metadata.
+    rs_metadata = get_metadata( ).
+    rs_metadata-ddic = abap_true.
   ENDMETHOD.
 
 
@@ -231,32 +281,4 @@ CLASS zcl_abapgit_object_sfsw IMPLEMENTATION.
                  iv_name = 'CONFLICTS' ).
 
   ENDMETHOD.
-
-  METHOD wait_for_background_job.
-
-    DATA: lv_job_count TYPE tbtco-jobcount.
-
-    " We wait for at most 5 seconds. If it takes
-    " more than that it probably doesn't matter,
-    " because we have other problems
-
-    DO 5 TIMES.
-
-      SELECT SINGLE jobcount
-             FROM tbtco
-             INTO lv_job_count
-             WHERE jobname = 'SFW_DELETE_SWITCH'
-             AND   status  = 'R'
-             AND   sdluname = sy-uname.
-
-      IF sy-subrc = 0.
-        WAIT UP TO 1 SECONDS.
-      ELSE.
-        EXIT.
-      ENDIF.
-
-    ENDDO.
-
-  ENDMETHOD.
-
 ENDCLASS.
