@@ -4,6 +4,8 @@
   <asx:values>
    <PROGDIR>
     <NAME>ZABAPGIT_FORMS</NAME>
+    <STATE>A</STATE>
+    <VARCL>X</VARCL>
     <SUBC>I</SUBC>
     <RLOAD>E</RLOAD>
     <UCCHECK>X</UCCHECK>

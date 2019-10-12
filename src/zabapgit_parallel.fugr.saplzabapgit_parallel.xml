@@ -4,6 +4,8 @@
   <asx:values>
    <PROGDIR>
     <NAME>SAPLZABAPGIT_PARALLEL</NAME>
+    <STATE>A</STATE>
+    <VARCL>X</VARCL>
     <DBAPL>S</DBAPL>
     <DBNA>D$</DBNA>
     <SUBC>F</SUBC>
