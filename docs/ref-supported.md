@@ -45,6 +45,7 @@ ENHS | Enhancement Spot | Yes
 ENQU | Lock Object | Yes
 ENSC | Composite Enhancement Spot | Yes
 FORM | SAPscript form | Yes
+FTGL | Feature Toggle | Yes
 FUGR | Function Group | Yes
 FUGS | Function Group with Customer Include: SAP Part | [#2851](https://github.com/larshp/abapGit/issues/2851)
 FUGX | Function Group with Customer Include: Customer Part | [#2851](https://github.com/larshp/abapGit/issues/2851)
@@ -54,6 +55,7 @@ IAMU | Language-Independent IAC Binary Data | Yes
 IARP | Parameters of IAC Language Resource | Yes
 IASP | Parameters of an IAC service | Yes
 IATU | Language-Independent IAC Templates | Yes
+IAXU | ITS: XML Templates for HTML Templates | Yes
 IDOC | IDoc Type | Yes
 IEXT | Enhancement | Yes
 INTF | Interface (ABAP objects) | Yes
@@ -91,6 +93,7 @@ SHLP | Search Help | Yes
 SHMA | Shared Objects: Defined Area Attributes | Yes
 SICF | ICF Service | Yes
 SMIM | Info Object from the MIME Repository | Yes
+SMTG | OM: Email Template 
 SOTS | All Concepts (OTR) of a Package - Long Texts | Yes
 SPLO | Format Types | Yes
 SPRX | Proxy Object | Yes
