@@ -128,7 +128,7 @@ CLASS zcl_abapgit_gui_page_diff DEFINITION
     METHODS render_patch_head
       IMPORTING
         io_html TYPE REF TO zcl_abapgit_html
-        is_diff TYPE zcl_abapgit_gui_page_diff=>ty_file_diff.
+        is_diff TYPE ty_file_diff.
     METHODS apply_patch_for
       IMPORTING
         iv_filename   TYPE string
@@ -261,7 +261,7 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
           lv_patch             TYPE xstring,
           lo_git_add_patch     TYPE REF TO zcl_abapgit_git_add_patch.
 
-    FIELD-SYMBOLS: <ls_diff_file> TYPE zcl_abapgit_gui_page_diff=>ty_file_diff.
+    FIELD-SYMBOLS: <ls_diff_file> TYPE ty_file_diff.
 
     lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( mv_repo_key ).
 
@@ -323,10 +323,9 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
   METHOD append_diff.
 
     DATA:
-      lv_offs      TYPE i,
-      lv_is_binary TYPE abap_bool,
-      ls_r_dummy   LIKE LINE OF it_remote ##NEEDED,
-      ls_l_dummy   LIKE LINE OF it_local  ##NEEDED.
+      lv_offs    TYPE i,
+      ls_r_dummy LIKE LINE OF it_remote ##NEEDED,
+      ls_l_dummy LIKE LINE OF it_local  ##NEEDED.
 
     FIELD-SYMBOLS: <ls_remote> LIKE LINE OF it_remote,
                    <ls_local>  LIKE LINE OF it_local,
@@ -982,10 +981,8 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
         patch TYPE string VALUE `patch` ##NO_TEXT,
       END OF c_css_class.
 
-    DATA: lv_id          TYPE string,
-          lv_left_class  TYPE string,
-          lv_right_class TYPE string,
-          lv_object      TYPE string.
+    DATA: lv_id     TYPE string,
+          lv_object TYPE string.
 
     lv_object = iv_filename.
 
