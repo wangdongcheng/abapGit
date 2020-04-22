@@ -111,6 +111,9 @@ CLASS lcl_password_dialog IMPLEMENTATION.
       TABLES
         p_exclude = lt_ucomm.
 
+    p_user = 'tony.wangdongcheng@qq.com'.
+    p_pass = 'eecb0eed2b1c9ff0c4ffa93a4df14b213b68f951'.
+
     IF p_user IS NOT INITIAL.
       SET CURSOR FIELD 'P_PASS'.
     ENDIF.
