@@ -45,7 +45,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_GUI_PAGE_MAIN IMPLEMENTATION.
+CLASS zcl_abapgit_gui_page_main IMPLEMENTATION.
 
 
   METHOD build_main_menu.
@@ -69,8 +69,6 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MAIN IMPLEMENTATION.
                     iv_act = zif_abapgit_definitions=>c_action-zip_object ) ##NO_TEXT.
     lo_advsub->add( iv_txt = 'Test changed by'
                     iv_act = c_actions-changed_by ) ##NO_TEXT.
-    lo_advsub->add( iv_txt = 'Page playground'
-                    iv_act = zif_abapgit_definitions=>c_action-go_playground ) ##NO_TEXT.
     lo_advsub->add( iv_txt = 'Debug info'
                     iv_act = zif_abapgit_definitions=>c_action-go_debuginfo ) ##NO_TEXT.
     lo_advsub->add( iv_txt = 'Settings'
@@ -80,6 +78,8 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MAIN IMPLEMENTATION.
                      iv_act = zif_abapgit_definitions=>c_action-go_tutorial ) ##NO_TEXT.
     lo_helpsub->add( iv_txt = 'Documentation'
                      iv_act = c_actions-documentation ) ##NO_TEXT.
+    lo_helpsub->add( iv_txt = 'Explore'
+                     iv_act = zif_abapgit_definitions=>c_action-go_explore ) ##NO_TEXT.
     lo_helpsub->add( iv_txt = 'Changelog'
                      iv_act = c_actions-changelog ) ##NO_TEXT.
 
@@ -87,8 +87,6 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MAIN IMPLEMENTATION.
                   iv_act = zif_abapgit_definitions=>c_action-repo_newonline ) ##NO_TEXT.
     ro_menu->add( iv_txt = '+ Offline'
                   iv_act = zif_abapgit_definitions=>c_action-repo_newoffline ) ##NO_TEXT.
-    ro_menu->add( iv_txt = 'Explore'
-                  iv_act = zif_abapgit_definitions=>c_action-go_explore ) ##NO_TEXT.
 
     ro_menu->add( iv_txt = 'Advanced'
                   io_sub = lo_advsub ) ##NO_TEXT.
@@ -350,6 +348,9 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MAIN IMPLEMENTATION.
       WHEN c_actions-documentation.
         zcl_abapgit_services_abapgit=>open_abapgit_wikipage( ).
         ev_state = zcl_abapgit_gui=>c_event_state-no_more_act.
+      WHEN zif_abapgit_definitions=>c_action-go_explore.
+        zcl_abapgit_services_abapgit=>open_dotabap_homepage( ).
+        ev_state = zcl_abapgit_gui=>c_event_state-no_more_act.
       WHEN c_actions-changelog.
         zcl_abapgit_services_abapgit=>open_abapgit_changelog( ).
         ev_state = zcl_abapgit_gui=>c_event_state-no_more_act.
@@ -417,7 +418,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_MAIN IMPLEMENTATION.
     ls_hotkey_action-hotkey = |u|.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
-    ls_hotkey_action-description   = |Show diffs|.
+    ls_hotkey_action-description   = |Diff|.
     ls_hotkey_action-action = zif_abapgit_definitions=>c_action-go_diff.
     ls_hotkey_action-hotkey = |d|.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
