@@ -95,6 +95,9 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_ADDONLINE IMPLEMENTATION.
     LOOP AT lt_form INTO ls_field.
       CASE ls_field-name.
         WHEN c_id-url OR c_id-package OR c_id-branch_name OR c_id-display_name OR c_id-folder_logic.
+          IF ls_field-name = c_id-package.
+            ls_field-value = to_upper( ls_field-value ).
+          ENDIF.
           ro_form_data->set(
             iv_key = ls_field-name
             iv_val = ls_field-value ).
@@ -171,7 +174,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_ADDONLINE IMPLEMENTATION.
       iv_action      = c_event-go_back ).
 
     ri_html->add( lo_form->render(
-      iv_form_class     = 'dialog w600px m-em5-sides' " to center add wmax600px and auto-center instead
+      iv_form_class     = 'dialog w600px m-em5-sides margin-v1' " to center add wmax600px and auto-center instead
       io_values         = mo_form_data
       io_validation_log = mo_validation_log ) ).
 
