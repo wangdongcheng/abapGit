@@ -19,7 +19,7 @@ CLASS zcl_abapgit_branch_overview DEFINITION
   PRIVATE SECTION.
 
     TYPES:
-      tyt_commit_sha1_range TYPE RANGE OF zif_abapgit_definitions=>ty_sha1 .
+      ty_commit_sha1_range TYPE RANGE OF zif_abapgit_definitions=>ty_sha1 .
 
     DATA mt_branches TYPE zif_abapgit_definitions=>ty_git_branch_list_tt .
     DATA mt_commits TYPE zif_abapgit_definitions=>ty_commit_tt .
@@ -67,9 +67,9 @@ CLASS zcl_abapgit_branch_overview DEFINITION
         !ct_commits TYPE zif_abapgit_definitions=>ty_commit_tt .
     METHODS _get_1st_child_commit
       IMPORTING
-        !it_commit_sha1s TYPE tyt_commit_sha1_range
+        !it_commit_sha1s TYPE ty_commit_sha1_range
       EXPORTING
-        !et_commit_sha1s TYPE tyt_commit_sha1_range
+        !et_commit_sha1s TYPE ty_commit_sha1_range
         !es_1st_commit   TYPE zif_abapgit_definitions=>ty_commit
       CHANGING
         !ct_commits      TYPE zif_abapgit_definitions=>ty_commit_tt .
@@ -332,7 +332,7 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
 
     li_progress->show(
       iv_current = 1
-      iv_text    = |Get git objects { io_repo->get_name( ) }| ) ##NO_TEXT.
+      iv_text    = |Get git objects { io_repo->get_name( ) }| ).
 
 * get objects directly from git, mo_repo only contains a shallow clone of only
 * the selected branch
@@ -357,14 +357,14 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
       INSERT ls_tag INTO TABLE mt_tags.
     ENDLOOP.
 
-    zcl_abapgit_git_transport=>upload_pack(
+    zcl_abapgit_git_transport=>upload_pack_by_branch(
       EXPORTING
-        iv_url         = io_repo->get_url( )
-        iv_branch_name = io_repo->get_branch_name( )
-        iv_deepen      = abap_false
-        it_branches    = lt_branches_and_tags
+        iv_url          = io_repo->get_url( )
+        iv_branch_name  = io_repo->get_branch_name( )
+        iv_deepen_level = 0
+        it_branches     = lt_branches_and_tags
       IMPORTING
-        et_objects     = rt_objects ).
+        et_objects      = rt_objects ).
 
     DELETE rt_objects WHERE type = zif_abapgit_definitions=>c_type-blob.
 
@@ -388,7 +388,7 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
                          WITH KEY sha1 = <ls_object>-sha1.
       ASSERT sy-subrc = 0.
 
-      <ls_tag>-name         = |refs/tags/{ ls_raw-tag }|.
+      <ls_tag>-name         = zif_abapgit_definitions=>c_git_branch-tags_prefix && ls_raw-tag.
       <ls_tag>-sha1         = <ls_object>-sha1.
       <ls_tag>-object       = ls_raw-object.
       <ls_tag>-type         = zif_abapgit_definitions=>c_git_branch_type-annotated_tag.
@@ -579,7 +579,7 @@ CLASS ZCL_ABAPGIT_BRANCH_OVERVIEW IMPLEMENTATION.
 
     DATA: lt_sorted_commits TYPE zif_abapgit_definitions=>ty_commit_tt,
           ls_next_commit    TYPE zif_abapgit_definitions=>ty_commit,
-          lt_parents        TYPE tyt_commit_sha1_range,
+          lt_parents        TYPE ty_commit_sha1_range,
           ls_parent         LIKE LINE OF lt_parents.
 
     FIELD-SYMBOLS: <ls_initial_commit> TYPE zif_abapgit_definitions=>ty_commit.

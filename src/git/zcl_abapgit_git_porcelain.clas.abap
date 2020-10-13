@@ -303,13 +303,11 @@ CLASS ZCL_ABAPGIT_GIT_PORCELAIN IMPLEMENTATION.
 
   METHOD delete_branch.
 
-    DATA: lt_objects TYPE zif_abapgit_definitions=>ty_objects_tt,
-          lv_pack    TYPE xstring.
+    DATA: lv_pack TYPE xstring.
 
 
 * "client MUST send an empty packfile"
 * https://github.com/git/git/blob/master/Documentation/technical/pack-protocol.txt#L514
-    lv_pack = zcl_abapgit_git_pack=>encode( lt_objects ).
 
     zcl_abapgit_git_transport=>receive_pack(
       iv_url         = iv_url
@@ -410,7 +408,7 @@ CLASS ZCL_ABAPGIT_GIT_PORCELAIN IMPLEMENTATION.
           ls_commit TYPE zcl_abapgit_git_pack=>ty_commit.
 
 
-    zcl_abapgit_git_transport=>upload_pack(
+    zcl_abapgit_git_transport=>upload_pack_by_branch(
       EXPORTING
         iv_url         = iv_url
         iv_branch_name = iv_branch_name

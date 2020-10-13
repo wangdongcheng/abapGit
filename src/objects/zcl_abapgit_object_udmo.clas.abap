@@ -44,32 +44,32 @@ CLASS zcl_abapgit_object_udmo DEFINITION
     METHODS update_tree .
     METHODS serialize_short_texts
       IMPORTING
-        !io_xml TYPE REF TO zcl_abapgit_xml_output
+        !io_xml TYPE REF TO zif_abapgit_xml_output
       RAISING
         zcx_abapgit_exception .
     METHODS deserialize_short_texts
       IMPORTING
-        !io_xml TYPE REF TO zcl_abapgit_xml_input
+        !io_xml TYPE REF TO zif_abapgit_xml_input
       RAISING
         zcx_abapgit_exception .
     METHODS serialize_long_texts
       IMPORTING
-        !io_xml TYPE REF TO zcl_abapgit_xml_output
+        !io_xml TYPE REF TO zif_abapgit_xml_output
       RAISING
         zcx_abapgit_exception .
     METHODS deserialize_long_texts
       IMPORTING
-        !io_xml TYPE REF TO zcl_abapgit_xml_input
+        !io_xml TYPE REF TO zif_abapgit_xml_input
       RAISING
         zcx_abapgit_exception .
     METHODS serialize_entities
       IMPORTING
-        !io_xml TYPE REF TO zcl_abapgit_xml_output
+        !io_xml TYPE REF TO zif_abapgit_xml_output
       RAISING
         zcx_abapgit_exception .
     METHODS deserialize_entities
       IMPORTING
-        !io_xml TYPE REF TO zcl_abapgit_xml_input
+        !io_xml TYPE REF TO zif_abapgit_xml_input
       RAISING
         zcx_abapgit_exception .
     METHODS access_modify
@@ -84,12 +84,12 @@ CLASS zcl_abapgit_object_udmo DEFINITION
         zcx_abapgit_exception .
     METHODS deserialize_model
       IMPORTING
-        !io_xml TYPE REF TO zcl_abapgit_xml_input
+        !io_xml TYPE REF TO zif_abapgit_xml_input
       RAISING
         zcx_abapgit_exception .
     METHODS serialize_model
       IMPORTING
-        !io_xml TYPE REF TO zcl_abapgit_xml_output
+        !io_xml TYPE REF TO zif_abapgit_xml_output
       RAISING
         zcx_abapgit_exception .
 ENDCLASS.
@@ -446,9 +446,9 @@ CLASS ZCL_ABAPGIT_OBJECT_UDMO IMPLEMENTATION.
     " The model has a long description also in a master language, with other long descriptions
     " maintained as translations using SE63 Translation Editor. All of these long texts are held in DOK*
 
-    TYPES BEGIN OF ls_language_type.
+    TYPES BEGIN OF ty_language_type.
     TYPES language TYPE dm40t-sprache.
-    TYPES END OF ls_language_type.
+    TYPES END OF ty_language_type.
 
     DATA BEGIN OF ls_udmo_long_text.
     DATA language TYPE dm40t-sprache.
@@ -457,7 +457,7 @@ CLASS ZCL_ABAPGIT_OBJECT_UDMO IMPLEMENTATION.
     DATA END OF ls_udmo_long_text.
 
     DATA lt_udmo_long_texts LIKE STANDARD TABLE OF ls_udmo_long_text.
-    DATA lt_udmo_languages TYPE STANDARD TABLE OF ls_language_type.
+    DATA lt_udmo_languages TYPE STANDARD TABLE OF ty_language_type.
     DATA ls_udmo_language  LIKE LINE OF lt_udmo_languages.
     DATA: lv_error_status  TYPE lxestatprc.
 

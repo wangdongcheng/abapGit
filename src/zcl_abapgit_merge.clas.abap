@@ -13,7 +13,7 @@ CLASS zcl_abapgit_merge DEFINITION
         zcx_abapgit_exception .
     METHODS get_conflicts
       RETURNING
-        VALUE(rt_conflicts) TYPE zif_abapgit_definitions=>tt_merge_conflict .
+        VALUE(rt_conflicts) TYPE zif_abapgit_definitions=>ty_merge_conflict_tt .
     METHODS get_result
       RETURNING
         VALUE(rs_merge) TYPE zif_abapgit_definitions=>ty_merge .
@@ -41,7 +41,7 @@ CLASS zcl_abapgit_merge DEFINITION
 
     DATA mo_repo TYPE REF TO zcl_abapgit_repo_online .
     DATA ms_merge TYPE zif_abapgit_definitions=>ty_merge .
-    DATA mt_conflicts TYPE zif_abapgit_definitions=>tt_merge_conflict .
+    DATA mt_conflicts TYPE zif_abapgit_definitions=>ty_merge_conflict_tt .
     DATA mt_objects TYPE zif_abapgit_definitions=>ty_objects_tt .
     DATA mv_source_branch TYPE string .
 
@@ -279,14 +279,14 @@ CLASS ZCL_ABAPGIT_MERGE IMPLEMENTATION.
     APPEND ms_merge-source TO lt_upload.
     APPEND ms_merge-target TO lt_upload.
 
-    zcl_abapgit_git_transport=>upload_pack(
+    zcl_abapgit_git_transport=>upload_pack_by_branch(
       EXPORTING
-        iv_url         = ms_merge-repo->get_url( )
-        iv_branch_name = ms_merge-repo->get_branch_name( )
-        iv_deepen      = abap_false
-        it_branches    = lt_upload
+        iv_url          = ms_merge-repo->get_url( )
+        iv_branch_name  = ms_merge-repo->get_branch_name( )
+        iv_deepen_level = 0
+        it_branches     = lt_upload
       IMPORTING
-        et_objects     = rt_objects ).
+        et_objects      = rt_objects ).
 
   ENDMETHOD.
 
@@ -375,11 +375,7 @@ CLASS ZCL_ABAPGIT_MERGE IMPLEMENTATION.
 
   METHOD has_conflicts.
 
-    IF lines( mt_conflicts ) > 0.
-      rv_conflicts_exists = abap_true.
-    ELSE.
-      rv_conflicts_exists = abap_false.
-    ENDIF.
+    rv_conflicts_exists = boolc( lines( mt_conflicts ) > 0 ).
 
   ENDMETHOD.
 

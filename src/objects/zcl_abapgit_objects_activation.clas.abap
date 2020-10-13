@@ -1,22 +1,27 @@
-CLASS zcl_abapgit_objects_activation DEFINITION PUBLIC CREATE PUBLIC.
+CLASS zcl_abapgit_objects_activation DEFINITION
+  PUBLIC
+  CREATE PUBLIC .
 
   PUBLIC SECTION.
+
     CLASS-METHODS add
-      IMPORTING iv_type   TYPE trobjtype
-                iv_name   TYPE clike
-                iv_delete TYPE abap_bool DEFAULT abap_false
-      RAISING   zcx_abapgit_exception.
-
+      IMPORTING
+        !iv_type   TYPE trobjtype
+        !iv_name   TYPE clike
+        !iv_delete TYPE abap_bool DEFAULT abap_false
+      RAISING
+        zcx_abapgit_exception .
     CLASS-METHODS add_item
-      IMPORTING is_item TYPE zif_abapgit_definitions=>ty_item
-      RAISING   zcx_abapgit_exception.
-
+      IMPORTING
+        !is_item TYPE zif_abapgit_definitions=>ty_item
+      RAISING
+        zcx_abapgit_exception .
     CLASS-METHODS activate
-      IMPORTING iv_ddic TYPE abap_bool DEFAULT abap_false
-      RAISING   zcx_abapgit_exception.
-
-    CLASS-METHODS clear.
-
+      IMPORTING
+        !iv_ddic TYPE abap_bool DEFAULT abap_false
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS clear .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -167,26 +172,55 @@ CLASS ZCL_ABAPGIT_OBJECTS_ACTIVATION IMPLEMENTATION.
 
   METHOD activate_old.
 
-    DATA: lv_popup TYPE abap_bool.
+    DATA: lv_popup TYPE abap_bool,
+          lv_no_ui TYPE abap_bool.
 
     IF gt_objects IS NOT INITIAL.
 
-      lv_popup = zcl_abapgit_ui_factory=>get_gui_functions( )->gui_is_available( ).
-
-      CALL FUNCTION 'RS_WORKING_OBJECTS_ACTIVATE'
-        EXPORTING
-          activate_ddic_objects  = iv_ddic
-          with_popup             = lv_popup
-        TABLES
-          objects                = gt_objects
-        EXCEPTIONS
-          excecution_error       = 1
-          cancelled              = 2
-          insert_into_corr_error = 3
-          OTHERS                 = 4.
-      IF sy-subrc <> 0.
-        zcx_abapgit_exception=>raise( 'error from RS_WORKING_OBJECTS_ACTIVATE' ).
+      IF zcl_abapgit_ui_factory=>get_gui_functions( )->gui_is_available( ) = abap_true.
+        IF zcl_abapgit_persist_settings=>get_instance( )->read( )->get_activate_wo_popup( ) = abap_true.
+          lv_popup = abap_false.
+        ELSE.
+          lv_popup = abap_true.
+        ENDIF.
+      ELSE.
+        lv_popup = abap_false.
       ENDIF.
+
+      lv_no_ui = boolc( lv_popup = abap_false ).
+
+      TRY.
+          CALL FUNCTION 'RS_WORKING_OBJECTS_ACTIVATE'
+            EXPORTING
+              activate_ddic_objects  = iv_ddic
+              with_popup             = lv_popup
+              ui_decoupled           = lv_no_ui
+            TABLES
+              objects                = gt_objects
+            EXCEPTIONS
+              excecution_error       = 1
+              cancelled              = 2
+              insert_into_corr_error = 3
+              OTHERS                 = 4 ##SUBRC_OK.
+        CATCH cx_sy_dyn_call_param_not_found.
+          CALL FUNCTION 'RS_WORKING_OBJECTS_ACTIVATE'
+            EXPORTING
+              activate_ddic_objects  = iv_ddic
+              with_popup             = lv_popup
+            TABLES
+              objects                = gt_objects
+            EXCEPTIONS
+              excecution_error       = 1
+              cancelled              = 2
+              insert_into_corr_error = 3
+              OTHERS                 = 4 ##SUBRC_OK.
+      ENDTRY.
+      CASE sy-subrc.
+        WHEN 1 OR 3 OR 4.
+          zcx_abapgit_exception=>raise_t100( ).
+        WHEN 2.
+          zcx_abapgit_exception=>raise( 'Activation cancelled. Check the inactive objects.' ).
+      ENDCASE.
 
     ENDIF.
 
@@ -199,43 +233,16 @@ CLASS ZCL_ABAPGIT_OBJECTS_ACTIVATION IMPLEMENTATION.
 * function module RS_INSERT_INTO_WORKING_AREA
 * class CL_WB_ACTIVATION_WORK_AREA
 
-    DATA: lt_objects  TYPE dwinactiv_tab,
-          lv_obj_name TYPE dwinactiv-obj_name.
+    FIELD-SYMBOLS: <ls_object> TYPE dwinactiv.
 
-    FIELD-SYMBOLS: <ls_object> LIKE LINE OF lt_objects.
-
-
-    lv_obj_name = iv_name.
-
-    CASE iv_type.
-      WHEN 'CLAS'.
-        APPEND iv_name TO gt_classes.
-      WHEN 'WDYN'.
-* todo, move this to the object type include instead
-        CALL FUNCTION 'RS_INACTIVE_OBJECTS_IN_OBJECT'
-          EXPORTING
-            obj_name         = lv_obj_name
-            object           = iv_type
-          TABLES
-            inactive_objects = lt_objects
-          EXCEPTIONS
-            object_not_found = 1
-            OTHERS           = 2.
-        IF sy-subrc <> 0.
-          zcx_abapgit_exception=>raise( 'Error from RS_INACTIVE_OBJECTS_IN_OBJECT' ).
-        ENDIF.
-
-        LOOP AT lt_objects ASSIGNING <ls_object>.
-          <ls_object>-delet_flag = iv_delete.
-        ENDLOOP.
-
-        APPEND LINES OF lt_objects TO gt_objects.
-      WHEN OTHERS.
-        APPEND INITIAL LINE TO gt_objects ASSIGNING <ls_object>.
-        <ls_object>-object     = iv_type.
-        <ls_object>-obj_name   = lv_obj_name.
-        <ls_object>-delet_flag = iv_delete.
-    ENDCASE.
+    IF iv_type = 'CLAS'.
+      APPEND iv_name TO gt_classes.
+    ELSE.
+      APPEND INITIAL LINE TO gt_objects ASSIGNING <ls_object>.
+      <ls_object>-object     = iv_type.
+      <ls_object>-obj_name   = iv_name.
+      <ls_object>-delet_flag = iv_delete.
+    ENDIF.
 
   ENDMETHOD.
 

@@ -17,7 +17,21 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_iobj IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_IOBJ IMPLEMENTATION.
+
+
+  METHOD clear_field.
+
+    FIELD-SYMBOLS: <lg_field> TYPE data.
+
+    ASSIGN COMPONENT iv_fieldname
+           OF STRUCTURE cg_metadata
+           TO <lg_field>.
+    ASSERT sy-subrc = 0.
+
+    CLEAR: <lg_field>.
+
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -55,11 +69,11 @@ CLASS zcl_abapgit_object_iobj IMPLEMENTATION.
 
   METHOD zif_abapgit_object~delete.
 
-    TYPES: BEGIN OF t_iobj,
+    TYPES: BEGIN OF ty_iobj,
              objnm TYPE c LENGTH 30.
-    TYPES END OF t_iobj.
+    TYPES END OF ty_iobj.
 
-    DATA: lt_iobjname     TYPE STANDARD TABLE OF t_iobj,
+    DATA: lt_iobjname     TYPE STANDARD TABLE OF ty_iobj,
           lv_subrc        TYPE sy-subrc,
           lv_object       TYPE string,
           lv_object_class TYPE string,
@@ -244,12 +258,12 @@ CLASS zcl_abapgit_object_iobj IMPLEMENTATION.
 
   METHOD zif_abapgit_object~exists.
 
-    DATA: lv_iobjnm TYPE char30.
+    DATA: lv_iobjnm TYPE c LENGTH 30.
 
     SELECT SINGLE iobjnm
-    FROM ('RSDIOBJ')
-    INTO lv_iobjnm
-    WHERE iobjnm = ms_item-obj_name.
+      FROM ('RSDIOBJ')
+      INTO lv_iobjnm
+      WHERE iobjnm = ms_item-obj_name.
 
     rv_bool = boolc( sy-subrc = 0 ).
 
@@ -439,19 +453,4 @@ CLASS zcl_abapgit_object_iobj IMPLEMENTATION.
                  ig_data = <lt_xxlattributes> ).
 
   ENDMETHOD.
-
-
-  METHOD clear_field.
-
-    FIELD-SYMBOLS: <lg_field> TYPE data.
-
-    ASSIGN COMPONENT iv_fieldname
-           OF STRUCTURE cg_metadata
-           TO <lg_field>.
-    ASSERT sy-subrc = 0.
-
-    CLEAR: <lg_field>.
-
-  ENDMETHOD.
-
 ENDCLASS.

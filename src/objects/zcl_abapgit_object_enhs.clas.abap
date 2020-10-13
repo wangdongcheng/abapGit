@@ -72,9 +72,7 @@ CLASS ZCL_ABAPGIT_OBJECT_ENHS IMPLEMENTATION.
         li_enh_object->unlock( ).
 
       CATCH cx_enh_root INTO lx_enh_root.
-        zcx_abapgit_exception=>raise(
-        iv_text = lx_enh_root->get_text( )
-        ix_previous = lx_enh_root ).
+        zcx_abapgit_exception=>raise_with_text( lx_enh_root ).
     ENDTRY.
 
   ENDMETHOD.
@@ -113,16 +111,18 @@ CLASS ZCL_ABAPGIT_OBJECT_ENHS IMPLEMENTATION.
             devclass       = lv_package ).
 
       CATCH cx_enh_root INTO lx_enh_root.
-        zcx_abapgit_exception=>raise(
-        iv_text = lx_enh_root->get_text( )
-        ix_previous = lx_enh_root ).
+        zcx_abapgit_exception=>raise_with_text( lx_enh_root ).
     ENDTRY.
 
     li_enhs = factory( lv_tool ).
 
-    li_enhs->deserialize( io_xml           = io_xml
+    li_enhs->deserialize( ii_xml           = io_xml
                           iv_package       = iv_package
                           ii_enh_spot_tool = li_spot_ref ).
+
+    zcl_abapgit_sotr_handler=>create_sotr(
+      iv_package = iv_package
+      io_xml     = io_xml ).
 
   ENDMETHOD.
 
@@ -198,15 +198,19 @@ CLASS ZCL_ABAPGIT_OBJECT_ENHS IMPLEMENTATION.
         li_spot_ref = cl_enh_factory=>get_enhancement_spot( lv_spot_name ).
 
       CATCH cx_enh_root INTO lx_enh_root.
-        zcx_abapgit_exception=>raise(
-        iv_text = lx_enh_root->get_text( )
-        ix_previous = lx_enh_root ).
+        zcx_abapgit_exception=>raise_with_text( lx_enh_root ).
     ENDTRY.
 
     li_enhs = factory( li_spot_ref->get_tool( ) ).
 
-    li_enhs->serialize( io_xml           = io_xml
+    li_enhs->serialize( ii_xml           = io_xml
                         ii_enh_spot_tool = li_spot_ref ).
+
+    zcl_abapgit_sotr_handler=>read_sotr(
+      iv_pgmid    = 'R3TR'
+      iv_object   = ms_item-obj_type
+      iv_obj_name = ms_item-obj_name
+      io_xml      = io_xml ).
 
   ENDMETHOD.
 ENDCLASS.

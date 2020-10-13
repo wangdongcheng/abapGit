@@ -1,4 +1,4 @@
-CLASS zcl_abapgit_gui_repo_over DEFINITION
+CLASS zcl_abapgit_gui_page_repo_over DEFINITION
   PUBLIC
   INHERITING FROM zcl_abapgit_gui_component
   FINAL
@@ -7,24 +7,24 @@ CLASS zcl_abapgit_gui_repo_over DEFINITION
   PUBLIC SECTION.
 
     INTERFACES zif_abapgit_gui_renderable .
-    DATA: mv_order_by         TYPE string READ-ONLY.
+
+    DATA mv_order_by TYPE string READ-ONLY .
 
     METHODS constructor
-      RAISING zcx_abapgit_exception.
+      RAISING
+        zcx_abapgit_exception .
     METHODS set_order_by
       IMPORTING
-        iv_order_by TYPE string.
+        !iv_order_by TYPE string .
     METHODS set_order_direction
       IMPORTING
-        iv_order_descending TYPE abap_bool.
-
+        !iv_order_descending TYPE abap_bool .
     METHODS set_filter
       IMPORTING
-        it_postdata TYPE cnht_post_data_tab.
-
+        !it_postdata TYPE cnht_post_data_tab .
     METHODS has_favorites
-      RETURNING VALUE(rv_has_favorites) TYPE abap_bool.
-
+      RETURNING
+        VALUE(rv_has_favorites) TYPE abap_bool .
   PROTECTED SECTION.
 
 
@@ -32,6 +32,7 @@ CLASS zcl_abapgit_gui_repo_over DEFINITION
     TYPES:
       BEGIN OF ty_overview,
         favorite        TYPE string,
+        "! True for offline, false for online repo
         type            TYPE string,
         key             TYPE string,
         name            TYPE string,
@@ -43,7 +44,7 @@ CLASS zcl_abapgit_gui_repo_over DEFINITION
         deserialized_by TYPE string,
         deserialized_at TYPE string,
       END OF ty_overview,
-      tty_overview TYPE STANDARD TABLE OF ty_overview
+      ty_overviews TYPE STANDARD TABLE OF ty_overview
                    WITH NON-UNIQUE DEFAULT KEY.
     CONSTANTS:
       BEGIN OF c_action,
@@ -54,8 +55,8 @@ CLASS zcl_abapgit_gui_repo_over DEFINITION
     DATA: mv_order_descending TYPE abap_bool,
           mv_filter           TYPE string,
           mv_time_zone        TYPE timezone,
-          mt_col_spec         TYPE zif_abapgit_definitions=>tty_col_spec,
-          mt_overview         TYPE tty_overview.
+          mt_col_spec         TYPE zif_abapgit_definitions=>ty_col_spec_tt,
+          mt_overview         TYPE ty_overviews.
 
     METHODS: render_text_input
       IMPORTING iv_name        TYPE string
@@ -66,13 +67,13 @@ CLASS zcl_abapgit_gui_repo_over DEFINITION
 
       apply_filter
         CHANGING
-          ct_overview TYPE tty_overview,
+          ct_overview TYPE ty_overviews,
 
       map_repo_list_to_overview
         IMPORTING
-          it_repo_list       TYPE zif_abapgit_persistence=>tt_repo
+          it_repo_list       TYPE zif_abapgit_persistence=>ty_repos
         RETURNING
-          VALUE(rt_overview) TYPE tty_overview
+          VALUE(rt_overview) TYPE ty_overviews
         RAISING
           zcx_abapgit_exception,
 
@@ -83,19 +84,19 @@ CLASS zcl_abapgit_gui_repo_over DEFINITION
       render_table
         IMPORTING
           ii_html     TYPE REF TO zif_abapgit_html
-          it_overview TYPE tty_overview,
+          it_overview TYPE ty_overviews,
 
       render_table_body
         IMPORTING
           ii_html     TYPE REF TO zif_abapgit_html
-          it_overview TYPE tty_overview,
+          it_overview TYPE ty_overviews,
 
       render_header_bar
         IMPORTING
           ii_html TYPE REF TO zif_abapgit_html,
 
       apply_order_by
-        CHANGING ct_overview TYPE tty_overview,
+        CHANGING ct_overview TYPE ty_overviews,
 
       _add_column
         IMPORTING
@@ -114,7 +115,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_repo_over IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_REPO_OVER IMPLEMENTATION.
 
 
   METHOD apply_filter.
@@ -250,14 +251,14 @@ CLASS zcl_abapgit_gui_repo_over IMPLEMENTATION.
     ii_html->add( |<input type="submit" class="hidden-submit">| ).
     ii_html->add( |</form>| ).
 
-    ii_html->add( zcl_abapgit_html=>a(
-      iv_txt = '<i id="icon-filter-favorite" class="icon icon-check"></i> Only favorites'
+    ii_html->add( ii_html->a(
+      iv_txt = '<i id="icon-filter-favorite" class="icon icon-check"></i> Only Favorites'
       iv_act = |gHelper.toggleRepoListFavorites()|
       iv_typ = zif_abapgit_html=>c_action_type-onclick ) ).
 
     ii_html->add( `<span class="separator">|</span>` ).
 
-    ii_html->add( zcl_abapgit_html=>a(
+    ii_html->add( ii_html->a(
       iv_txt = '<i id="icon-filter-detail" class="icon icon-check"></i> Detail'
       iv_act = |gHelper.toggleRepoListDetail()|
       iv_typ = zif_abapgit_html=>c_action_type-onclick ) ).
@@ -298,14 +299,18 @@ CLASS zcl_abapgit_gui_repo_over IMPLEMENTATION.
     CONSTANTS: lc_separator TYPE string VALUE `<span class="separator">|</span>`.
 
     DATA:
-      lv_type_icon           TYPE string,
-      lv_favorite_icon       TYPE string,
-      lv_favorite_class      TYPE string,
-      lv_package_jump_data   TYPE string,
-      lv_package_obj_name    TYPE sobj_name,
-      lv_stage_link          TYPE string,
-      lv_patch_link          TYPE string,
-      lv_code_inspector_link TYPE string.
+      lv_type_icon         TYPE string,
+      lv_favorite_icon     TYPE string,
+      lv_favorite_class    TYPE string,
+      lv_package_jump_data TYPE string,
+      lv_package_obj_name  TYPE sobj_name,
+      lv_stage_link        TYPE string,
+      lv_patch_link        TYPE string,
+      lv_zip_import_link   TYPE string,
+      lv_zip_export_link   TYPE string,
+      lv_check_link        TYPE string,
+      lv_settings_link     TYPE string,
+      lv_branch_html       TYPE string.
 
     FIELD-SYMBOLS: <ls_overview> LIKE LINE OF it_overview.
 
@@ -329,19 +334,19 @@ CLASS zcl_abapgit_gui_repo_over IMPLEMENTATION.
 
       ii_html->add( |<tr class="repo { lv_favorite_class }">| ).
       ii_html->add( |<td class="wmin">| ).
-      ii_html->add_a( iv_act = |{ zif_abapgit_definitions=>c_action-repo_toggle_fav }?{ <ls_overview>-key }|
-                      iv_txt = zcl_abapgit_html=>icon( iv_name  = lv_favorite_icon
-                                                       iv_class = 'pad-sides'
-                                                       iv_hint  = 'Click to toggle favorite' ) ).
+      ii_html->add_a( iv_act = |{ zif_abapgit_definitions=>c_action-repo_toggle_fav }?key={ <ls_overview>-key }|
+                      iv_txt = ii_html->icon( iv_name  = lv_favorite_icon
+                                              iv_class = 'pad-sides'
+                                              iv_hint  = 'Click to toggle favorite' ) ).
       ii_html->add( |</td>| ).
-      ii_html->add( |<td class="wmin">{ zcl_abapgit_html=>icon( lv_type_icon )  }</td>| ).
+      ii_html->add( |<td class="wmin">{ ii_html->icon( lv_type_icon ) }</td>| ).
 
-      ii_html->add( |<td>{ zcl_abapgit_html=>a( iv_txt = <ls_overview>-name
-                                                iv_act = |{ c_action-select }?{ <ls_overview>-key }| ) }</td>| ).
+      ii_html->add( |<td>{ ii_html->a( iv_txt = <ls_overview>-name
+                                       iv_act = |{ c_action-select }?key={ <ls_overview>-key }| ) }</td>| ).
 
       IF <ls_overview>-type = abap_false.
         ii_html->add( |<td>{ ii_html->a( iv_txt = <ls_overview>-url
-                                         iv_act = |{ zif_abapgit_definitions=>c_action-url }?|
+                                         iv_act = |{ zif_abapgit_definitions=>c_action-url }?url=|
                                                && |{ <ls_overview>-url }| ) }</td>| ).
       ELSE.
         ii_html->add( |<td></td>| ).
@@ -356,9 +361,18 @@ CLASS zcl_abapgit_gui_repo_over IMPLEMENTATION.
           iv_txt = <ls_overview>-package
           iv_act = |{ zif_abapgit_definitions=>c_action-jump }?{ lv_package_jump_data }| ) }</td>| ).
 
-      ii_html->add( |<td>{ ii_html->a(
-        iv_txt = <ls_overview>-branch
-        iv_act = |{ zif_abapgit_definitions=>c_action-git_branch_switch }?{ <ls_overview>-key }| ) }</td>| ).
+      IF <ls_overview>-branch IS INITIAL.
+        ii_html->add( |<td>&nbsp;</td>| ).
+      ELSE.
+        lv_branch_html = `<span class="branch branch_branch">`
+          && `<i title="Current branch" class="icon icon-code-branch grey70"></i>`
+          && <ls_overview>-branch
+          && `</span>`.
+
+        ii_html->add( |<td>{ ii_html->a(
+          iv_txt = lv_branch_html
+          iv_act = |{ zif_abapgit_definitions=>c_action-git_branch_switch }?key={ <ls_overview>-key }| ) }</td>| ).
+      ENDIF.
 
       ii_html->add( |<td class="ro-detail">{ <ls_overview>-deserialized_by }</td>| ).
       ii_html->add( |<td class="ro-detail">{ <ls_overview>-deserialized_at }</td>| ).
@@ -368,26 +382,50 @@ CLASS zcl_abapgit_gui_repo_over IMPLEMENTATION.
 
       ii_html->add( |<td class='ro-action'> | ).
 
-      lv_stage_link = ii_html->a(
-        iv_txt = |Stage|
-        iv_act = |{ zif_abapgit_definitions=>c_action-go_stage }?{ <ls_overview>-key } | ).
+      lv_check_link = ii_html->a(
+        iv_txt = |Check|
+        iv_act = |{ zif_abapgit_definitions=>c_action-repo_code_inspector }?key={ <ls_overview>-key } | ).
 
-      lv_patch_link = ii_html->a(
-        iv_txt = |Patch|
-        iv_act = |{ zif_abapgit_definitions=>c_action-go_patch }?{ <ls_overview>-key } | ).
+      ii_html->add( lv_check_link && lc_separator ).
 
-      lv_code_inspector_link = ii_html->a(
-        iv_txt = |Code inspector|
-        iv_act = |{ zif_abapgit_definitions=>c_action-repo_code_inspector }?{ <ls_overview>-key } | ).
+      IF <ls_overview>-type = abap_false. " online repo
+        lv_stage_link = ii_html->a(
+          iv_txt = |Stage|
+          iv_act = |{ zif_abapgit_definitions=>c_action-go_stage }?key={ <ls_overview>-key } | ).
 
-      ii_html->add( lv_code_inspector_link && lc_separator && lv_stage_link && lc_separator && lv_patch_link ).
+        ii_html->add( lv_stage_link && lc_separator ).
+
+        lv_patch_link = ii_html->a(
+          iv_txt = |Patch|
+          iv_act = |{ zif_abapgit_definitions=>c_action-go_patch }?key={ <ls_overview>-key } | ).
+
+        ii_html->add( lv_patch_link && lc_separator ).
+      ELSE. " offline repo
+        lv_zip_import_link = ii_html->a(
+          iv_txt = |Import|
+          iv_act = |{ zif_abapgit_definitions=>c_action-zip_import }?key={ <ls_overview>-key } | ).
+
+        ii_html->add( lv_zip_import_link && lc_separator ).
+
+        lv_zip_export_link = ii_html->a(
+          iv_txt = |Export|
+          iv_act = |{ zif_abapgit_definitions=>c_action-zip_export }?key={ <ls_overview>-key } | ).
+
+        ii_html->add( lv_zip_export_link && lc_separator ).
+      ENDIF.
+
+      lv_settings_link = ii_html->a(
+        iv_txt = |Settings|
+        iv_act = |{ zif_abapgit_definitions=>c_action-repo_settings }?key={ <ls_overview>-key } | ).
+
+      ii_html->add( lv_settings_link ).
 
       ii_html->add( |</td>| ).
 
       ii_html->add( |<td class='ro-go'><span>{
-                zcl_abapgit_html=>a(
+                ii_html->a(
                   iv_txt = `&rsaquo;`
-                  iv_act = |{ c_action-select }?{ <ls_overview>-key }| ) }</span></td>| ).
+                  iv_act = |{ c_action-select }?key={ <ls_overview>-key }| ) }</span></td>| ).
 
       ii_html->add( |</tr>| ).
 
@@ -444,7 +482,7 @@ CLASS zcl_abapgit_gui_repo_over IMPLEMENTATION.
 
 
     _add_column(
-      iv_tech_name = 'CREATED_TAT'
+      iv_tech_name = 'CREATED_AT'
       iv_display_name = 'Created at'
       iv_css_class = 'ro-detail'
       iv_add_tz = abap_true ).
@@ -551,5 +589,4 @@ CLASS zcl_abapgit_gui_repo_over IMPLEMENTATION.
     <ls_col>-css_class = iv_css_class.
     <ls_col>-add_tz = iv_add_tz.
   ENDMETHOD.
-
 ENDCLASS.

@@ -3,9 +3,9 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <VSEOCLASS>
-    <CLSNAME>ZCL_ABAPGIT_GUI_REPO_OVER</CLSNAME>
+    <CLSNAME>ZCL_ABAPGIT_PR_ENUM_GITHUB</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>GUI - DB page</DESCRIPT>
+    <DESCRIPT>abapgit Github PR enumerator strategy</DESCRIPT>
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>
