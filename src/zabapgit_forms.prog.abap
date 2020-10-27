@@ -89,12 +89,20 @@ FORM output.
 ENDFORM.
 
 FORM exit RAISING zcx_abapgit_exception.
+
+  " The exit logic should only be applied for our 'main' selection screen 1001.
+  " All other selection-screens are called as popups and shouldn't influence
+  " the gui navigation as it would lead to inpredictable behaviour like dumps.
+  IF sy-dynnr <> 1001.
+    RETURN.
+  ENDIF.
+
   CASE sy-ucomm.
     WHEN 'CBAC' OR 'CCAN'.  "Back & Escape
       IF zcl_abapgit_ui_factory=>get_gui( )->back( ) = abap_true. " end of stack
         zcl_abapgit_ui_factory=>get_gui( )->free( ). " Graceful shutdown
       ELSE.
-        LEAVE TO SCREEN 1001.
+        CALL SELECTION-SCREEN 1001.
       ENDIF.
   ENDCASE.
 ENDFORM.
