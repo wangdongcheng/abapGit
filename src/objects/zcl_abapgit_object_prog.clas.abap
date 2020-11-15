@@ -30,7 +30,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_PROG IMPLEMENTATION.
+CLASS zcl_abapgit_object_prog IMPLEMENTATION.
 
 
   METHOD deserialize_texts.
@@ -75,7 +75,7 @@ CLASS ZCL_ABAPGIT_OBJECT_PROG IMPLEMENTATION.
 
     " Table d010tinf stores info. on languages in which program is maintained
     " Select all active translations of program texts
-    " Skip master language - it was already serialized
+    " Skip main language - it was already serialized
     SELECT DISTINCT language
       INTO CORRESPONDING FIELDS OF TABLE lt_tpool_i18n
       FROM d010tinf
@@ -126,8 +126,10 @@ CLASS ZCL_ABAPGIT_OBJECT_PROG IMPLEMENTATION.
         permission_failure         = 3
         reject_deletion            = 4
         OTHERS                     = 5.
-
-    IF sy-subrc <> 0.
+    IF sy-subrc = 2.
+      " Drop also any inactive code that is left in REPOSRC
+      DELETE REPORT lv_program ##SUBRC_OK.
+    ELSEIF sy-subrc <> 0.
       zcx_abapgit_exception=>raise( |Error from RS_DELETE_PROGRAM: { sy-subrc }| ).
     ENDIF.
 

@@ -420,7 +420,8 @@ CLASS lcl_status_result DEFINITION.
           VALUE(rs_data) TYPE zif_abapgit_definitions=>ty_result,
       assert_lines
         IMPORTING
-          iv_lines TYPE i.
+          iv_lines TYPE i
+          iv_msg   TYPE csequence OPTIONAL.
 
   PRIVATE SECTION.
     DATA: mt_results TYPE zif_abapgit_definitions=>ty_results_tt.
@@ -447,7 +448,8 @@ CLASS lcl_status_result IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
       act = lines( mt_results )
-      exp = iv_lines ).
+      exp = iv_lines
+      msg = iv_msg ).
 
   ENDMETHOD.
 
@@ -629,8 +631,10 @@ CLASS ltcl_calculate_status DEFINITION FOR TESTING RISK LEVEL HARMLESS
       only_local FOR TESTING RAISING zcx_abapgit_exception,
       match FOR TESTING RAISING zcx_abapgit_exception,
       diff FOR TESTING RAISING zcx_abapgit_exception,
+      moved FOR TESTING RAISING zcx_abapgit_exception,
       local_outside_main FOR TESTING RAISING zcx_abapgit_exception,
-      complete FOR TESTING RAISING zcx_abapgit_exception.
+      complete FOR TESTING RAISING zcx_abapgit_exception,
+      deleted_remotely FOR TESTING RAISING zcx_abapgit_exception.
 
 ENDCLASS.
 
@@ -639,6 +643,34 @@ CLASS ltcl_calculate_status IMPLEMENTATION.
   METHOD setup.
 
     CREATE OBJECT mo_helper.
+
+  ENDMETHOD.
+
+  METHOD moved.
+
+    mo_helper->add_local(
+     iv_obj_type = 'DOMA'
+     iv_obj_name = '$$ZDOMA1'
+     iv_filename = '$$zdoma1.doma.xml'
+     iv_path     = '/foo/'
+     iv_devclass = 'FOO'
+     iv_sha1     = 'D1' ).
+
+    mo_helper->add_remote(
+     iv_filename = '$$zdoma1.doma.xml'
+     iv_path     = '/bar/'
+     iv_sha1     = 'D1' ).
+
+    mo_helper->add_tadir(
+      iv_obj_type = 'DOMA'
+      iv_obj_name = '$$ZDOMA1'
+      iv_devclass = 'FOO' ).
+
+    mo_result = mo_helper->run( iv_devclass = 'FOO' ).
+
+    mo_result->assert_lines(
+      iv_lines = 2
+      iv_msg   = 'there must be a status calculated for both files, they are in different folders' ).
 
   ENDMETHOD.
 
@@ -980,4 +1012,31 @@ CLASS ltcl_calculate_status IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD deleted_remotely.
+
+    DATA:
+      ls_line TYPE zif_abapgit_definitions=>ty_result,
+      lv_act  TYPE c LENGTH 3,
+      lv_exp  TYPE c LENGTH 3.
+
+    mo_helper->add_local(
+      iv_path     = '/src/'
+      iv_filename = 'ztest_deleted_remotely.prog.abap'
+      iv_sha1     = '1016' ).
+
+    mo_helper->add_state(
+      iv_path     = '/src/'
+      iv_filename = 'ztest_deleted_remotely.prog.abap'
+      iv_sha1     = '2016' ). " different checksum
+
+    mo_result = mo_helper->run( ).
+
+    mo_result->assert_lines( 1 ).
+
+    " it should appear as deleted remotely
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_result->get_line( 1 )-rstate
+      exp = zif_abapgit_definitions=>c_state-deleted ).
+
+  ENDMETHOD.
 ENDCLASS.
