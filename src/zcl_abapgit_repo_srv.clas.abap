@@ -76,7 +76,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_repo_srv IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_REPO_SRV IMPLEMENTATION.
 
 
   METHOD add.
@@ -476,10 +476,14 @@ CLASS zcl_abapgit_repo_srv IMPLEMENTATION.
 
   METHOD zif_abapgit_repo_srv~purge.
 
-* todo, this should be a method on the repo instead
+* uninstalls all objects, no UI or popups in this class
+
+* todo, this should be a method on the repo instead?
 
     DATA: lt_tadir TYPE zif_abapgit_definitions=>ty_tadir_tt.
 
+    CREATE OBJECT ri_log TYPE zcl_abapgit_log.
+    ri_log->set_title( 'Uninstall Log' ).
 
     IF io_repo->get_local_settings( )-write_protected = abap_true.
       zcx_abapgit_exception=>raise( 'Cannot purge. Local code is write-protected by repo config' ).
@@ -490,7 +494,8 @@ CLASS zcl_abapgit_repo_srv IMPLEMENTATION.
     lt_tadir = zcl_abapgit_factory=>get_tadir( )->read( io_repo->get_package( ) ).
 
     zcl_abapgit_objects=>delete( it_tadir  = lt_tadir
-                                 is_checks = is_checks ).
+                                 is_checks = is_checks
+                                 ii_log    = ri_log ).
 
     delete( io_repo ).
 
