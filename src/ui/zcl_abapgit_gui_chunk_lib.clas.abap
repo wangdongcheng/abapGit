@@ -1,7 +1,7 @@
 CLASS zcl_abapgit_gui_chunk_lib DEFINITION
   PUBLIC
   FINAL
-  CREATE PUBLIC .
+  CREATE PUBLIC.
 
   PUBLIC SECTION.
 
@@ -106,6 +106,12 @@ CLASS zcl_abapgit_gui_chunk_lib DEFINITION
         VALUE(ro_menu) TYPE REF TO zcl_abapgit_html_toolbar .
     CLASS-METHODS settings_toolbar
       IMPORTING
+        !iv_act        TYPE string
+      RETURNING
+        VALUE(ro_menu) TYPE REF TO zcl_abapgit_html_toolbar .
+    CLASS-METHODS settings_repo_toolbar
+      IMPORTING
+        !iv_key        TYPE zif_abapgit_persistence=>ty_repo-key
         !iv_act        TYPE string
       RETURNING
         VALUE(ro_menu) TYPE REF TO zcl_abapgit_html_toolbar .
@@ -273,10 +279,12 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
   METHOD render_branch_name.
 
     DATA:
-      lv_key    TYPE string,
-      lv_branch TYPE string,
-      lv_text   TYPE string,
-      lv_class  TYPE string.
+      lv_key              TYPE string,
+      lv_branch           TYPE string,
+      lv_selected_commit  TYPE string,
+      lv_commit_short_sha TYPE string,
+      lv_text             TYPE string,
+      lv_class            TYPE string.
 
     IF iv_repo_key IS NOT INITIAL.
       lv_key = iv_repo_key.
@@ -288,13 +296,20 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
 
     IF iv_branch IS NOT INITIAL.
       lv_branch = iv_branch.
+      lv_text = zcl_abapgit_git_branch_list=>get_display_name( lv_branch ).
     ELSEIF io_repo IS BOUND.
-      lv_branch = io_repo->get_selected_branch( ).
+      lv_selected_commit = io_repo->get_selected_commit( ).
+      IF lv_selected_commit IS NOT INITIAL.
+        "Convert to short commit. Example: (ae623b9...)
+        lv_commit_short_sha = lv_selected_commit+0(7).
+        lv_text = |({ lv_commit_short_sha }...)|.
+      ELSE.
+        lv_branch = io_repo->get_selected_branch( ).
+        lv_text = zcl_abapgit_git_branch_list=>get_display_name( lv_branch ).
+      ENDIF.
     ELSE.
       zcx_abapgit_exception=>raise( 'Either iv_branch or io_repo must be supplied' ).
     ENDIF.
-
-    lv_text = zcl_abapgit_git_branch_list=>get_display_name( lv_branch ).
 
     IF zcl_abapgit_git_branch_list=>get_type( lv_branch ) = zif_abapgit_definitions=>c_git_branch_type-branch.
       lv_class = 'branch branch_branch'.
@@ -980,6 +995,26 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
     ri_html->add( '<div class="dummydiv warning">' ).
     ri_html->add( |{ ri_html->icon( 'exclamation-triangle/yellow' ) } { iv_text }| ).
     ri_html->add( '</div>' ).
+
+  ENDMETHOD.
+
+
+  METHOD settings_repo_toolbar.
+
+    CREATE OBJECT ro_menu EXPORTING iv_id = 'toolbar-repo-settings'.
+
+    ro_menu->add(
+      iv_txt = 'Repository'
+      iv_act = |{ zif_abapgit_definitions=>c_action-repo_settings }?key={ iv_key }|
+      iv_cur = boolc( iv_act = zif_abapgit_definitions=>c_action-repo_settings )
+    )->add(
+      iv_txt = 'Local'
+      iv_act = |{ zif_abapgit_definitions=>c_action-repo_local_settings }?key={ iv_key }|
+      iv_cur = boolc( iv_act = zif_abapgit_definitions=>c_action-repo_local_settings )
+    )->add(
+      iv_txt = 'Stats'
+      iv_act = |{ zif_abapgit_definitions=>c_action-repo_infos }?key={ iv_key }|
+      iv_cur = boolc( iv_act = zif_abapgit_definitions=>c_action-repo_infos ) ).
 
   ENDMETHOD.
 
