@@ -7,9 +7,10 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
     INTERFACES zif_abapgit_gui_hotkeys.
 
     CONSTANTS: BEGIN OF c_action,
-                 stage_all    TYPE string VALUE 'stage_all',
-                 stage_commit TYPE string VALUE 'stage_commit',
-                 stage_filter TYPE string VALUE 'stage_filter',
+                 stage_refresh TYPE string VALUE 'stage_refresh',
+                 stage_all     TYPE string VALUE 'stage_all',
+                 stage_commit  TYPE string VALUE 'stage_commit',
+                 stage_filter  TYPE string VALUE 'stage_filter',
                END OF c_action.
 
     METHODS:
@@ -33,17 +34,10 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
       END OF ty_changed_by .
     TYPES:
       ty_changed_by_tt TYPE SORTED TABLE OF ty_changed_by WITH UNIQUE KEY item .
-    TYPES:
-      BEGIN OF ty_transport,
-        item      TYPE zif_abapgit_definitions=>ty_item,
-        transport TYPE trkorr,
-      END OF ty_transport .
-    TYPES:
-      ty_transport_tt TYPE SORTED TABLE OF ty_transport WITH UNIQUE KEY item .
 
     DATA mo_repo TYPE REF TO zcl_abapgit_repo_online .
     DATA ms_files TYPE zif_abapgit_definitions=>ty_stage_files .
-    DATA mv_seed TYPE string .             " Unique page id to bind JS sessionStorage
+    DATA mv_seed TYPE string .               " Unique page id to bind JS sessionStorage
     DATA mv_filter_value TYPE string .
 
     METHODS check_selected
@@ -54,28 +48,14 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
     METHODS find_changed_by
       IMPORTING
         !it_files            TYPE zif_abapgit_definitions=>ty_stage_files
-        !it_transports       TYPE ty_transport_tt
+        !it_transports       TYPE zif_abapgit_cts_api=>ty_transport_list
       RETURNING
         VALUE(rt_changed_by) TYPE ty_changed_by_tt .
-    METHODS find_transports_remote
-      IMPORTING
-        !it_files      TYPE zif_abapgit_definitions=>ty_files_tt
-      CHANGING
-        !ct_transports TYPE ty_transport_tt
-      RAISING
-        zcx_abapgit_exception .
-    METHODS find_transports_local
-      IMPORTING
-        !it_files      TYPE zif_abapgit_definitions=>ty_files_item_tt
-      CHANGING
-        !ct_transports TYPE ty_transport_tt
-      RAISING
-        zcx_abapgit_exception .
     METHODS find_transports
       IMPORTING
         !it_files            TYPE zif_abapgit_definitions=>ty_stage_files
       RETURNING
-        VALUE(rt_transports) TYPE ty_transport_tt .
+        VALUE(rt_transports) TYPE zif_abapgit_cts_api=>ty_transport_list .
     METHODS render_list
       RETURNING
         VALUE(ri_html) TYPE REF TO zif_abapgit_html
@@ -118,7 +98,7 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
         VALUE(ri_page) TYPE REF TO zif_abapgit_gui_renderable
       RAISING
         zcx_abapgit_exception .
-    METHODS render_master_language_warning
+    METHODS render_main_language_warning
       RETURNING
         VALUE(ri_html) TYPE REF TO zif_abapgit_html .
     METHODS count_default_files_to_commit
@@ -132,11 +112,14 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
         VALUE(ri_html) TYPE REF TO zif_abapgit_html
       RAISING
         zcx_abapgit_exception .
+    METHODS init_files
+      RAISING
+        zcx_abapgit_exception .
 ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
 
 
   METHOD build_menu.
@@ -145,12 +128,17 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
 
     IF lines( ms_files-local ) > 0
     OR lines( ms_files-remote ) > 0.
-      ro_menu->add( iv_txt = |Diff|
-                    iv_act = |{ zif_abapgit_definitions=>c_action-go_diff }?key={ mo_repo->get_key( ) }| ).
-
-      ro_menu->add( iv_txt = |Patch|
-                    iv_typ = zif_abapgit_html=>c_action_type-onclick
-                    iv_id  = |patchBtn| ).
+      ro_menu->add(
+        iv_txt = 'Refresh'
+        iv_act = |{ c_action-stage_refresh }|
+        iv_opt = zif_abapgit_html=>c_html_opt-strong
+      )->add(
+        iv_txt = |Diff|
+        iv_act = |{ zif_abapgit_definitions=>c_action-go_repo_diff }?key={ mo_repo->get_key( ) }|
+      )->add(
+        iv_txt = |Patch|
+        iv_typ = zif_abapgit_html=>c_action_type-onclick
+        iv_id  = |patchBtn| ).
     ENDIF.
 
   ENDMETHOD.
@@ -177,17 +165,20 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
           ev_path     = ls_file-path
           ev_filename = ls_file-filename ).
 
-      lv_pattern = '*/' && to_upper( ls_file-filename ).
-      REPLACE ALL OCCURRENCES OF '#' IN lv_pattern WITH '##'. " for CP
+      " Skip packages since they all have identical filenames
+      IF ls_file-filename <> 'package.devc.xml'.
+        lv_pattern = '*/' && to_upper( ls_file-filename ).
+        REPLACE ALL OCCURRENCES OF '#' IN lv_pattern WITH '##'. " for CP
 
-      LOOP AT io_files->mt_entries ASSIGNING <ls_item_chk>
-        WHERE k CP lv_pattern AND k <> <ls_item>-k AND v <> zif_abapgit_definitions=>c_method-rm.
+        LOOP AT io_files->mt_entries ASSIGNING <ls_item_chk>
+          WHERE k CP lv_pattern AND k <> <ls_item>-k AND v <> zif_abapgit_definitions=>c_method-rm.
 
-        lv_msg = |In order to add { to_lower( <ls_item>-k ) }, | &&
-                 |you have to remove { to_lower( <ls_item_chk>-k ) }|.
-        zcx_abapgit_exception=>raise( lv_msg ).
+          lv_msg = |In order to add { to_lower( <ls_item>-k ) }, | &&
+                   |you have to remove { to_lower( <ls_item_chk>-k ) }|.
+          zcx_abapgit_exception=>raise( lv_msg ).
 
-      ENDLOOP.
+        ENDLOOP.
+      ENDIF.
     ENDLOOP.
 
   ENDMETHOD.
@@ -201,7 +192,6 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
 
     ms_control-page_title = 'Stage'.
     mo_repo               = io_repo.
-    ms_files              = zcl_abapgit_factory=>get_stage_logic( )->get( mo_repo ).
     mv_seed               = iv_seed.
 
     IF mv_seed IS INITIAL. " Generate based on time unless obtained from diff page
@@ -209,11 +199,8 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
       mv_seed = |stage{ lv_ts }|.
     ENDIF.
 
+    init_files( ).
     ms_control-page_menu = build_menu( ).
-
-    IF lines( ms_files-local ) = 0 AND lines( ms_files-remote ) = 0.
-      zcx_abapgit_exception=>raise( 'There are no changes that could be staged' ).
-    ENDIF.
 
   ENDMETHOD.
 
@@ -248,7 +235,7 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
           ls_changed_by        LIKE LINE OF rt_changed_by,
           lt_changed_by_remote LIKE rt_changed_by,
           ls_item              TYPE zif_abapgit_definitions=>ty_item,
-          lv_transport         TYPE ty_transport,
+          lv_transport         LIKE LINE OF it_transports,
           lv_user              TYPE e070-as4user.
 
     FIELD-SYMBOLS: <ls_changed_by> LIKE LINE OF rt_changed_by.
@@ -284,13 +271,13 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
       TRY.
           " deleted files might still be in a transport
           CLEAR lv_transport.
-          READ TABLE it_transports WITH KEY item = <ls_changed_by>-item
-          INTO lv_transport.
-
+          READ TABLE it_transports WITH KEY
+            obj_type = <ls_changed_by>-item-obj_type
+            obj_name = <ls_changed_by>-item-obj_name
+            INTO lv_transport.
           IF sy-subrc = 0.
             SELECT SINGLE as4user FROM e070 INTO lv_user
-            WHERE trkorr = lv_transport-transport.
-
+              WHERE trkorr = lv_transport-trkorr.
             <ls_changed_by>-name = lv_user.
           ELSE.
             <ls_changed_by>-name = zcl_abapgit_objects_super=>c_user_unknown.
@@ -306,100 +293,46 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
 
   METHOD find_transports.
 
+    DATA li_cts_api TYPE REF TO zif_abapgit_cts_api.
+    DATA lt_items TYPE zif_abapgit_definitions=>ty_items_tt.
+    DATA ls_item TYPE zif_abapgit_definitions=>ty_item.
+    DATA lo_dot TYPE REF TO zcl_abapgit_dot_abapgit.
+    FIELD-SYMBOLS <ls_local> LIKE LINE OF it_files-local.
+    FIELD-SYMBOLS <ls_remote> LIKE LINE OF it_files-remote.
+
+
+    li_cts_api = zcl_abapgit_factory=>get_cts_api( ).
+
     TRY.
+        LOOP AT it_files-local ASSIGNING <ls_local> WHERE item IS NOT INITIAL.
+          IF li_cts_api->is_chrec_possible_for_package( <ls_local>-item-devclass ) = abap_false.
+            RETURN. " Assume all other objects are also in packages without change recording
+          ENDIF.
+          APPEND <ls_local>-item TO lt_items.
+        ENDLOOP.
 
-        find_transports_local(
-          EXPORTING
-            it_files = it_files-local
-          CHANGING
-            ct_transports = rt_transports ).
+        lo_dot = mo_repo->get_dot_abapgit( ).
+        LOOP AT it_files-remote ASSIGNING <ls_remote> WHERE filename IS NOT INITIAL.
+          zcl_abapgit_file_status=>identify_object(
+            EXPORTING
+              iv_filename = <ls_remote>-filename
+              iv_path     = <ls_remote>-path
+              io_dot      = lo_dot
+            IMPORTING
+              es_item     = ls_item ).
+          IF ls_item IS INITIAL.
+            CONTINUE.
+          ENDIF.
+          APPEND <ls_local>-item TO lt_items.
+        ENDLOOP.
 
-        find_transports_remote(
-          EXPORTING
-            it_files = it_files-remote
-          CHANGING
-            ct_transports = rt_transports ).
+        SORT lt_items BY obj_type obj_name.
+        DELETE ADJACENT DUPLICATES FROM lt_items COMPARING obj_type obj_name.
+
+        rt_transports = li_cts_api->get_transports_for_list( lt_items ).
 
       CATCH zcx_abapgit_exception.
     ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD find_transports_local.
-
-    DATA ls_new  LIKE LINE OF ct_transports.
-    FIELD-SYMBOLS: <ls_local> LIKE LINE OF it_files.
-
-    DATA li_cts_api TYPE REF TO zif_abapgit_cts_api.
-    li_cts_api = zcl_abapgit_factory=>get_cts_api( ).
-
-    LOOP AT it_files ASSIGNING <ls_local> WHERE item IS NOT INITIAL.
-      IF <ls_local>-item-obj_type IS NOT INITIAL AND
-         <ls_local>-item-obj_name IS NOT INITIAL AND
-         <ls_local>-item-devclass IS NOT INITIAL.
-
-        IF li_cts_api->is_chrec_possible_for_package( <ls_local>-item-devclass ) = abap_false.
-          EXIT. " Assume all other objects are also in packages without change recording
-
-        ELSEIF li_cts_api->is_object_type_lockable( <ls_local>-item-obj_type ) = abap_true AND
-               li_cts_api->is_object_locked_in_transport( iv_object_type = <ls_local>-item-obj_type
-                                                          iv_object_name = <ls_local>-item-obj_name ) = abap_true.
-
-          ls_new-item = <ls_local>-item.
-
-          ls_new-transport = li_cts_api->get_current_transport_for_obj(
-            iv_object_type             = <ls_local>-item-obj_type
-            iv_object_name             = <ls_local>-item-obj_name
-            iv_resolve_task_to_request = abap_false ).
-
-          INSERT ls_new INTO TABLE ct_transports.
-        ENDIF.
-      ENDIF.
-    ENDLOOP.
-  ENDMETHOD.
-
-
-  METHOD find_transports_remote.
-
-    DATA:
-      ls_item        TYPE zif_abapgit_definitions=>ty_item,
-      lv_is_xml_file TYPE abap_bool,
-      ls_new         LIKE LINE OF ct_transports,
-      li_cts_api     TYPE REF TO zif_abapgit_cts_api.
-
-    FIELD-SYMBOLS: <ls_remote> LIKE LINE OF it_files.
-
-    li_cts_api = zcl_abapgit_factory=>get_cts_api( ).
-
-    LOOP AT it_files ASSIGNING <ls_remote> WHERE filename IS NOT INITIAL.
-
-      CLEAR ls_item.
-      CLEAR ls_new.
-
-      zcl_abapgit_file_status=>identify_object(
-        EXPORTING
-          iv_filename = <ls_remote>-filename
-          iv_path = <ls_remote>-path
-          io_dot = mo_repo->get_dot_abapgit( )
-        IMPORTING
-          es_item = ls_item
-          ev_is_xml = lv_is_xml_file ).
-
-      IF ls_item IS INITIAL.
-        CONTINUE.
-      ELSEIF li_cts_api->is_object_type_lockable( ls_item-obj_type ) = abap_true
-        AND li_cts_api->is_object_locked_in_transport( iv_object_type = ls_item-obj_type
-                                                       iv_object_name = ls_item-obj_name ) = abap_true.
-        ls_new-item = ls_item.
-        ls_new-transport = li_cts_api->get_current_transport_for_obj(
-          iv_object_type             = ls_item-obj_type
-          iv_object_name             = ls_item-obj_name
-          iv_resolve_task_to_request = abap_false ).
-        INSERT ls_new INTO TABLE ct_transports.
-      ENDIF.
-
-    ENDLOOP.
 
   ENDMETHOD.
 
@@ -423,6 +356,14 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
 
     ri_page = lo_page.
 
+  ENDMETHOD.
+
+
+  METHOD init_files.
+    ms_files = zcl_abapgit_factory=>get_stage_logic( )->get( mo_repo ).
+    IF lines( ms_files-local ) = 0 AND lines( ms_files-remote ) = 0.
+      zcx_abapgit_exception=>raise( 'There are no changes that could be staged' ).
+    ENDIF.
   ENDMETHOD.
 
 
@@ -480,7 +421,7 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
     ri_html->add( '<div class="repo">' ).
     ri_html->add( zcl_abapgit_gui_chunk_lib=>render_repo_top( mo_repo ) ).
     ri_html->add( zcl_abapgit_gui_chunk_lib=>render_js_error_banner( ) ).
-    ri_html->add( render_master_language_warning( ) ).
+    ri_html->add( render_main_language_warning( ) ).
 
     ri_html->add( '<div class="stage-container">' ).
     ri_html->add( render_actions( ) ).
@@ -536,7 +477,7 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
 
         lv_filename = ri_html->a(
           iv_txt = lv_filename
-          iv_act = |{ zif_abapgit_definitions=>c_action-go_diff }?{ lv_param }| ).
+          iv_act = |{ zif_abapgit_definitions=>c_action-go_file_diff }?{ lv_param }| ).
 
         ri_html->add( |<td class="type">{ is_item-obj_type }</td>| ).
         ri_html->add( |<td class="name">{ lv_filename }</td>| ).
@@ -565,7 +506,7 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
 
     DATA: lt_changed_by  TYPE ty_changed_by_tt,
           ls_changed_by  LIKE LINE OF lt_changed_by,
-          lt_transports  TYPE ty_transport_tt,
+          lt_transports  TYPE zif_abapgit_cts_api=>ty_transport_list,
           ls_transport   LIKE LINE OF lt_transports,
           ls_item_remote TYPE zif_abapgit_definitions=>ty_item.
 
@@ -600,7 +541,9 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
       ENDAT.
 
       READ TABLE lt_changed_by INTO ls_changed_by WITH KEY item = <ls_local>-item. "#EC CI_SUBRC
-      READ TABLE lt_transports INTO ls_transport WITH KEY item = <ls_local>-item. "#EC CI_SUBRC
+      READ TABLE lt_transports INTO ls_transport WITH KEY
+        obj_type = <ls_local>-item-obj_type
+        obj_name = <ls_local>-item-obj_name. "#EC CI_SUBRC
       READ TABLE ms_files-status ASSIGNING <ls_status>
         WITH TABLE KEY
           path     = <ls_local>-file-path
@@ -613,7 +556,7 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
         is_item       = <ls_local>-item
         is_status     = <ls_status>
         iv_changed_by = ls_changed_by-name
-        iv_transport  = ls_transport-transport ) ).
+        iv_transport  = ls_transport-trkorr ) ).
 
       CLEAR ls_transport.
 
@@ -651,7 +594,9 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
               io_dot      = mo_repo->get_dot_abapgit( )
             IMPORTING
               es_item     = ls_item_remote ).
-          READ TABLE lt_transports INTO ls_transport WITH KEY item = ls_item_remote.
+          READ TABLE lt_transports INTO ls_transport WITH KEY
+            obj_type = ls_item_remote-obj_type
+            obj_name = ls_item_remote-obj_name.
           READ TABLE lt_changed_by INTO ls_changed_by WITH KEY item = ls_item_remote.
         CATCH zcx_abapgit_exception.
           CLEAR ls_transport.
@@ -663,7 +608,7 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
         is_file       = <ls_remote>
         is_item       = ls_item_remote
         iv_changed_by = ls_changed_by-name
-        iv_transport  = ls_transport-transport ) ).
+        iv_transport  = ls_transport-trkorr ) ).
 
       AT LAST.
         ri_html->add( '</tbody>' ).
@@ -675,7 +620,7 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD render_master_language_warning.
+  METHOD render_main_language_warning.
 
     DATA: ls_dot_abapgit TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit.
 
@@ -873,6 +818,11 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
         rs_handled-page  = get_page_patch( lo_stage ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
 
+      WHEN c_action-stage_refresh.
+        mo_repo->refresh( abap_true ).
+        init_files( ).
+        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+
       WHEN OTHERS.
         rs_handled = super->zif_abapgit_gui_event_handler~on_event( ii_event ).
     ENDCASE.
@@ -891,8 +841,13 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
     ls_hotkey_action-description  = |Diff|.
-    ls_hotkey_action-action       = zif_abapgit_definitions=>c_action-go_diff.
+    ls_hotkey_action-action       = zif_abapgit_definitions=>c_action-go_repo_diff.
     ls_hotkey_action-hotkey       = |d|.
+    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+
+    ls_hotkey_action-description  = |Refresh|.
+    ls_hotkey_action-action       = c_action-stage_refresh.
+    ls_hotkey_action-hotkey       = |r|.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
   ENDMETHOD.

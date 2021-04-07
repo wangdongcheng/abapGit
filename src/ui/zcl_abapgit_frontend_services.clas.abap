@@ -17,10 +17,12 @@ CLASS ZCL_ABAPGIT_FRONTEND_SERVICES IMPLEMENTATION.
 
   METHOD zif_abapgit_frontend_services~file_download.
 
-    DATA:
-      lt_rawdata  TYPE solix_tab.
+    TYPES ty_hex TYPE x LENGTH 200.
+    DATA lt_rawdata TYPE STANDARD TABLE OF ty_hex WITH DEFAULT KEY.
 
-    lt_rawdata = cl_bcs_convert=>xstring_to_solix( iv_xstr ).
+    zcl_abapgit_convert=>xstring_to_bintab(
+      EXPORTING iv_xstr   = iv_xstr
+      IMPORTING et_bintab = lt_rawdata ).
 
     cl_gui_frontend_services=>gui_download(
       EXPORTING
@@ -55,7 +57,7 @@ CLASS ZCL_ABAPGIT_FRONTEND_SERVICES IMPLEMENTATION.
         error_no_gui              = 23
         OTHERS                    = 24 ).
     IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'error from gui_download' ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
   ENDMETHOD.
@@ -116,7 +118,7 @@ CLASS ZCL_ABAPGIT_FRONTEND_SERVICES IMPLEMENTATION.
       lv_rc         TYPE i.
 
     IF iv_extension = 'zip'.
-      lv_filter = 'ZIP Files (*.ZIP)|*.ZIP|' && cl_gui_frontend_services=>filetype_all.
+      lv_filter = 'ZIP Files (*.zip)|*.zip|' && cl_gui_frontend_services=>filetype_all.
     ENDIF.
 
     cl_gui_frontend_services=>file_open_dialog(
@@ -135,10 +137,10 @@ CLASS ZCL_ABAPGIT_FRONTEND_SERVICES IMPLEMENTATION.
         not_supported_by_gui    = 4
         OTHERS                  = 5 ).
     IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'error from file_open_dialog' ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
     IF lv_action = cl_gui_frontend_services=>action_cancel.
-      zcx_abapgit_exception=>raise( 'cancelled' ).
+      zcx_abapgit_exception=>raise( 'Cancelled' ).
     ENDIF.
 
     READ TABLE lt_file_table INDEX 1 INTO ls_file_table.
@@ -157,7 +159,7 @@ CLASS ZCL_ABAPGIT_FRONTEND_SERVICES IMPLEMENTATION.
       lv_path     TYPE string.
 
     IF iv_extension = 'zip'.
-      lv_filter = 'ZIP Files (*.ZIP)|*.ZIP|' && cl_gui_frontend_services=>filetype_all.
+      lv_filter = 'ZIP Files (*.zip)|*.zip|' && cl_gui_frontend_services=>filetype_all.
     ENDIF.
 
     cl_gui_frontend_services=>file_save_dialog(
@@ -177,10 +179,10 @@ CLASS ZCL_ABAPGIT_FRONTEND_SERVICES IMPLEMENTATION.
         not_supported_by_gui = 3
         OTHERS               = 4 ).
     IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'error from file_save_dialog' ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
     IF lv_action = cl_gui_frontend_services=>action_cancel.
-      zcx_abapgit_exception=>raise( 'cancelled' ).
+      zcx_abapgit_exception=>raise( 'Cancelled' ).
     ENDIF.
 
   ENDMETHOD.

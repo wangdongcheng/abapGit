@@ -30,7 +30,7 @@ CLASS zcl_abapgit_gui_page_addonline DEFINITION
         display_name       TYPE string VALUE 'display_name',
         folder_logic       TYPE string VALUE 'folder_logic',
         ignore_subpackages TYPE string VALUE 'ignore_subpackages',
-        master_lang_only   TYPE string VALUE 'master_lang_only',
+        main_lang_only     TYPE string VALUE 'main_lang_only',
       END OF c_id.
 
     CONSTANTS:
@@ -97,7 +97,7 @@ CLASS zcl_abapgit_gui_page_addonline IMPLEMENTATION.
       iv_name        = c_id-url
       iv_required    = abap_true
       iv_label       = 'Git Repository URL'
-      iv_hint        = 'HTTPS address of the repository to clone'
+      iv_hint        = 'HTTPS address of the repository'
       iv_placeholder = 'https://github.com/...git'
     )->text(
       iv_name        = c_id-package
@@ -111,7 +111,7 @@ CLASS zcl_abapgit_gui_page_addonline IMPLEMENTATION.
       iv_name        = c_id-branch_name
       iv_side_action = c_event-choose_branch
       iv_label       = 'Branch'
-      iv_hint        = 'Switch to a specific branch on clone (default: autodetect)'
+      iv_hint        = 'Switch to a specific branch (default: autodetect)'
       iv_placeholder = 'Autodetect default branch'
     )->radio(
       iv_name        = c_id-folder_logic
@@ -133,11 +133,11 @@ CLASS zcl_abapgit_gui_page_addonline IMPLEMENTATION.
       iv_label       = 'Ignore Subpackages'
       iv_hint        = 'Synchronize root package only'
     )->checkbox(
-      iv_name        = c_id-master_lang_only
+      iv_name        = c_id-main_lang_only
       iv_label       = 'Serialize Main Language Only'
       iv_hint        = 'Ignore translations, serialize just main language'
     )->command(
-      iv_label       = 'Clone Online Repo'
+      iv_label       = 'Create Online Repo'
       iv_cmd_type    = zif_abapgit_html_form=>c_cmd_type-input_main
       iv_action      = c_event-add_online_repo
     )->command(

@@ -47,24 +47,31 @@ CLASS zcl_abapgit_dot_abapgit DEFINITION
     METHODS get_starting_folder
       RETURNING
         VALUE(rv_path) TYPE string .
-
     METHODS get_folder_logic
       RETURNING
         VALUE(rv_logic) TYPE string .
-
     METHODS set_folder_logic
       IMPORTING
         !iv_logic TYPE string .
-
     METHODS set_starting_folder
       IMPORTING
         !iv_path TYPE string .
-
     METHODS get_master_language
       RETURNING
         VALUE(rv_language) TYPE spras .
-*      set_master_language
-*        IMPORTING iv_language TYPE spras,
+    METHODS get_main_language
+      RETURNING
+        VALUE(rv_language) TYPE spras .
+    METHODS get_i18n_languages
+      RETURNING
+        VALUE(rt_languages) TYPE zif_abapgit_definitions=>ty_languages
+      RAISING
+        zcx_abapgit_exception .
+    METHODS set_i18n_languages
+      IMPORTING
+        VALUE(it_languages) TYPE zif_abapgit_definitions=>ty_languages
+      RAISING
+        zcx_abapgit_exception .
     METHODS get_signature
       RETURNING
         VALUE(rs_signature) TYPE zif_abapgit_definitions=>ty_file_signature
@@ -72,10 +79,11 @@ CLASS zcl_abapgit_dot_abapgit DEFINITION
         zcx_abapgit_exception .
     METHODS get_requirements
       RETURNING
-        VALUE(rt_requirements) TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt.
+        VALUE(rt_requirements) TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt .
     METHODS set_requirements
       IMPORTING
-        it_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt.
+        !it_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt .
+
   PROTECTED SECTION.
   PRIVATE SECTION.
     DATA: ms_data TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit.
@@ -183,7 +191,18 @@ CLASS ZCL_ABAPGIT_DOT_ABAPGIT IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD get_i18n_languages.
+    rt_languages = ms_data-i18n_languages.
+  ENDMETHOD.
+
+
+  METHOD get_main_language.
+    rv_language = ms_data-master_language.
+  ENDMETHOD.
+
+
   METHOD get_master_language.
+    " todo, transition to get_main_language()
     rv_language = ms_data-master_language.
   ENDMETHOD.
 
@@ -282,6 +301,11 @@ CLASS ZCL_ABAPGIT_DOT_ABAPGIT IMPLEMENTATION.
 
   METHOD set_folder_logic.
     ms_data-folder_logic = iv_logic.
+  ENDMETHOD.
+
+
+  METHOD set_i18n_languages.
+    ms_data-i18n_languages = it_languages.
   ENDMETHOD.
 
 

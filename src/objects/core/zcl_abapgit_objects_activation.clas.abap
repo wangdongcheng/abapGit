@@ -66,6 +66,9 @@ CLASS ZCL_ABAPGIT_OBJECTS_ACTIVATION IMPLEMENTATION.
 
   METHOD activate.
 
+    " Make sure that all changes are committed since any activation error will lead to a rollback
+    COMMIT WORK AND WAIT.
+
     IF use_new_activation_logic( ) = abap_true.
       activate_new( iv_ddic ).
     ELSE.
@@ -115,10 +118,11 @@ CLASS ZCL_ABAPGIT_OBJECTS_ACTIVATION IMPLEMENTATION.
 
       CALL FUNCTION 'DD_MASS_ACT_C3'
         EXPORTING
-          ddmode         = 'O'
-          medium         = 'T' " transport order
-          device         = 'T' " saves to table DDRPH?
-          version        = 'M' " activate newest
+          ddmode         = 'O'         " activate changes in Original System
+          frcact         = abap_true   " force Activation
+          medium         = 'T'         " transport order
+          device         = 'T'         " saves to table DDRPH?
+          version        = 'M'         " activate newest version
           logname        = lv_logname
           write_log      = abap_true
           log_head_tail  = abap_true
@@ -138,7 +142,7 @@ CLASS ZCL_ABAPGIT_OBJECTS_ACTIVATION IMPLEMENTATION.
           OTHERS         = 5.
 
       IF sy-subrc <> 0.
-        zcx_abapgit_exception=>raise( 'error from DD_MASS_ACT_C3' ).
+        zcx_abapgit_exception=>raise_t100( ).
       ENDIF.
 
       IF lv_rc > 0.
@@ -327,7 +331,7 @@ CLASS ZCL_ABAPGIT_OBJECTS_ACTIVATION IMPLEMENTATION.
         OTHERS        = 3.
 
     IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'error from TR_READ_LOG' ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
     DELETE lt_lines WHERE severity <> 'E'.

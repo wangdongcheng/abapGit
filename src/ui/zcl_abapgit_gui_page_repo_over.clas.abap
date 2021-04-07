@@ -21,10 +21,7 @@ CLASS zcl_abapgit_gui_page_repo_over DEFINITION
         !iv_order_descending TYPE abap_bool .
     METHODS set_filter
       IMPORTING
-        !it_postdata TYPE cnht_post_data_tab .
-    METHODS has_favorites
-      RETURNING
-        VALUE(rv_has_favorites) TYPE abap_bool .
+        !it_postdata TYPE zif_abapgit_html_viewer=>ty_post_data .
   PROTECTED SECTION.
 
 
@@ -70,8 +67,6 @@ CLASS zcl_abapgit_gui_page_repo_over DEFINITION
           ct_overview TYPE ty_overviews,
 
       map_repo_list_to_overview
-        IMPORTING
-          it_repo_list       TYPE zif_abapgit_persistence=>ty_repos
         RETURNING
           VALUE(rt_overview) TYPE ty_overviews
         RAISING
@@ -120,7 +115,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_REPO_OVER IMPLEMENTATION.
 
 
   METHOD apply_filter.
@@ -183,41 +178,33 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD has_favorites.
-    READ TABLE mt_overview WITH KEY favorite = abap_true TRANSPORTING NO FIELDS.
-    IF sy-subrc = 0.
-      rv_has_favorites = abap_true.
-    ENDIF.
-  ENDMETHOD.
-
-
   METHOD map_repo_list_to_overview.
 
-    DATA: ls_overview LIKE LINE OF rt_overview,
-          lo_repo_srv TYPE REF TO zcl_abapgit_repo,
-          lv_date     TYPE d,
-          lv_time     TYPE t.
+    DATA: ls_overview   LIKE LINE OF rt_overview,
+          lv_date       TYPE d,
+          lv_time       TYPE t,
+          lt_repo_obj_list TYPE zif_abapgit_repo_srv=>ty_repo_list.
 
-    FIELD-SYMBOLS: <ls_repo> LIKE LINE OF it_repo_list.
+    FIELD-SYMBOLS <ls_repo> LIKE LINE OF lt_repo_obj_list.
 
+    lt_repo_obj_list = zcl_abapgit_repo_srv=>get_instance( )->list( ).
 
-    LOOP AT it_repo_list ASSIGNING <ls_repo>.
+    LOOP AT lt_repo_obj_list ASSIGNING <ls_repo>.
 
       CLEAR: ls_overview.
-      lo_repo_srv = zcl_abapgit_repo_srv=>get_instance( )->get( <ls_repo>-key ).
 
       ls_overview-favorite   = zcl_abapgit_persistence_user=>get_instance(
-        )->is_favorite_repo( <ls_repo>-key ).
-      ls_overview-type       = <ls_repo>-offline.
-      ls_overview-key        = <ls_repo>-key.
-      ls_overview-name       = lo_repo_srv->get_name( ).
-      ls_overview-url        = <ls_repo>-url.
-      ls_overview-package    = <ls_repo>-package.
-      ls_overview-branch     = <ls_repo>-branch_name.
-      ls_overview-created_by = <ls_repo>-created_by.
+        )->is_favorite_repo( <ls_repo>->ms_data-key ).
+      ls_overview-type       = <ls_repo>->ms_data-offline.
+      ls_overview-key        = <ls_repo>->ms_data-key.
+      ls_overview-name       = <ls_repo>->get_name( ).
+      ls_overview-url        = <ls_repo>->ms_data-url.
+      ls_overview-package    = <ls_repo>->ms_data-package.
+      ls_overview-branch     = <ls_repo>->ms_data-branch_name.
+      ls_overview-created_by = <ls_repo>->ms_data-created_by.
 
-      IF <ls_repo>-created_at IS NOT INITIAL.
-        CONVERT TIME STAMP <ls_repo>-created_at
+      IF <ls_repo>->ms_data-created_at IS NOT INITIAL.
+        CONVERT TIME STAMP <ls_repo>->ms_data-created_at
                 TIME ZONE mv_time_zone
                 INTO DATE lv_date
                      TIME lv_time.
@@ -225,10 +212,10 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
         ls_overview-created_at = |{ lv_date DATE = USER } { lv_time TIME = USER }|.
       ENDIF.
 
-      ls_overview-deserialized_by = <ls_repo>-deserialized_by.
+      ls_overview-deserialized_by = <ls_repo>->ms_data-deserialized_by.
 
-      IF <ls_repo>-deserialized_at IS NOT INITIAL.
-        CONVERT TIME STAMP <ls_repo>-deserialized_at
+      IF <ls_repo>->ms_data-deserialized_at IS NOT INITIAL.
+        CONVERT TIME STAMP <ls_repo>->ms_data-deserialized_at
                 TIME ZONE mv_time_zone
                 INTO DATE lv_date
                      TIME lv_time.
@@ -304,15 +291,17 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
     CONSTANTS: lc_separator TYPE string VALUE `<span class="separator">|</span>`.
 
     DATA:
-      lv_type_icon         TYPE string,
-      lv_favorite_icon     TYPE string,
-      lv_favorite_class    TYPE string,
-      lv_stage_link        TYPE string,
-      lv_patch_link        TYPE string,
-      lv_zip_import_link   TYPE string,
-      lv_zip_export_link   TYPE string,
-      lv_check_link        TYPE string,
-      lv_settings_link     TYPE string.
+      lv_type_icon       TYPE string,
+      lv_favorite_icon   TYPE string,
+      lv_favorite_class  TYPE string,
+      lv_stage_link      TYPE string,
+      lv_patch_link      TYPE string,
+      lv_zip_import_link TYPE string,
+      lv_zip_export_link TYPE string,
+      lv_check_link      TYPE string,
+      lv_text            TYPE string,
+      lv_settings_link   TYPE string.
+    DATA lv_new_length TYPE i.
 
     FIELD-SYMBOLS: <ls_overview> LIKE LINE OF it_overview.
 
@@ -347,15 +336,25 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
                                        iv_act = |{ c_action-select }?key={ <ls_overview>-key }| ) }</td>| ).
 
       IF <ls_overview>-type = abap_false.
-        ii_html->add( |<td>{ ii_html->a( iv_txt = <ls_overview>-url
-                                         iv_act = |{ zif_abapgit_definitions=>c_action-url }?url=|
-                                               && |{ <ls_overview>-url }| ) }</td>| ).
+        lv_text = <ls_overview>-url.
+        REPLACE FIRST OCCURRENCE OF 'https://' IN lv_text WITH ''.
+        REPLACE FIRST OCCURRENCE OF 'http://' IN lv_text WITH ''.
+        IF lv_text CP '*.git'.
+          lv_new_length = strlen( lv_text ) - 4.
+          lv_text  = lv_text(lv_new_length).
+        ENDIF.
+        ii_html->add( |<td>{ ii_html->a(
+          iv_txt   = lv_text
+          iv_title = <ls_overview>-url
+          iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ <ls_overview>-url }| ) }</td>| ).
       ELSE.
         ii_html->add( |<td></td>| ).
       ENDIF.
 
       ii_html->add( |<td>| ).
-      ii_html->add( zcl_abapgit_gui_chunk_lib=>render_package_name( <ls_overview>-package ) ).
+      ii_html->add( zcl_abapgit_gui_chunk_lib=>render_package_name(
+        iv_package = <ls_overview>-package
+        iv_suppress_title = abap_true ) ).
       ii_html->add( |</td>| ).
 
       IF <ls_overview>-branch IS INITIAL.
@@ -369,11 +368,15 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
       ENDIF.
 
       ii_html->add( |<td class="ro-detail">| ).
-      ii_html->add( zcl_abapgit_gui_chunk_lib=>render_user_name( <ls_overview>-deserialized_by ) ).
+      ii_html->add( zcl_abapgit_gui_chunk_lib=>render_user_name(
+        iv_username = <ls_overview>-deserialized_by
+        iv_suppress_title = abap_true ) ).
       ii_html->add( |</td>| ).
       ii_html->add( |<td class="ro-detail">{ <ls_overview>-deserialized_at }</td>| ).
       ii_html->add( |<td class="ro-detail">| ).
-      ii_html->add( zcl_abapgit_gui_chunk_lib=>render_user_name( <ls_overview>-created_by ) ).
+      ii_html->add( zcl_abapgit_gui_chunk_lib=>render_user_name(
+        iv_username = <ls_overview>-created_by
+        iv_suppress_title = abap_true ) ).
       ii_html->add( |</td>| ).
       ii_html->add( |<td class="ro-detail">{ <ls_overview>-created_at }</td>| ).
       ii_html->add( |<td class="ro-detail">{ <ls_overview>-key }</td>| ).
@@ -574,13 +577,16 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_renderable~render.
 
-    mt_overview = map_repo_list_to_overview( zcl_abapgit_persist_factory=>get_repo( )->list( ) ).
+    mt_overview = map_repo_list_to_overview( ).
     apply_order_by( CHANGING ct_overview = mt_overview ).
     apply_filter( CHANGING ct_overview = mt_overview ).
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 
     render_header_bar( ri_html ).
+
+    zcl_abapgit_exit=>get_instance( )->wall_message_list( ri_html ).
+
     render_table( ii_html     = ri_html
                   it_overview = mt_overview ).
 

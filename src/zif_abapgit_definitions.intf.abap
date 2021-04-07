@@ -361,9 +361,6 @@ INTERFACE zif_abapgit_definitions
   TYPES:
     ty_deserialization_step_tt TYPE STANDARD TABLE OF ty_deserialization_step
                                           WITH DEFAULT KEY .
-  TYPES:
-    ty_object_type_range TYPE RANGE OF trobjtype,
-    ty_object_name_range TYPE RANGE OF sobj_name.
   CONSTANTS:
     BEGIN OF c_git_branch_type,
       branch          TYPE ty_git_branch_type VALUE 'HD',
@@ -421,6 +418,7 @@ INTERFACE zif_abapgit_definitions
       repo_remove                   TYPE string VALUE 'repo_remove',
       repo_settings                 TYPE string VALUE 'repo_settings',
       repo_local_settings           TYPE string VALUE 'repo_local_settings',
+      repo_background               TYPE string VALUE 'repo_background',
       repo_infos                    TYPE string VALUE 'repo_infos',
       repo_purge                    TYPE string VALUE 'repo_purge',
       repo_newonline                TYPE string VALUE 'repo_newonline',
@@ -437,7 +435,6 @@ INTERFACE zif_abapgit_definitions
       repo_open_in_master_lang      TYPE string VALUE 'repo_open_in_master_lang',
       repo_log                      TYPE string VALUE 'repo_log',
       abapgit_home                  TYPE string VALUE 'abapgit_home',
-      abapgit_install               TYPE string VALUE 'abapgit_install',
       zip_import                    TYPE string VALUE 'zip_import',
       zip_export                    TYPE string VALUE 'zip_export',
       zip_package                   TYPE string VALUE 'zip_package',
@@ -458,12 +455,14 @@ INTERFACE zif_abapgit_definitions
       db_display                    TYPE string VALUE 'db_display',
       db_edit                       TYPE string VALUE 'db_edit',
       bg_update                     TYPE string VALUE 'bg_update',
+      go_back                       TYPE string VALUE 'go_back',
       go_explore                    TYPE string VALUE 'go_explore',
       go_repo                       TYPE string VALUE 'go_repo',
       go_db                         TYPE string VALUE 'go_db',
       go_background                 TYPE string VALUE 'go_background',
       go_background_run             TYPE string VALUE 'go_background_run',
-      go_diff                       TYPE string VALUE 'go_diff',
+      go_repo_diff                  TYPE string VALUE 'go_repo_diff',
+      go_file_diff                  TYPE string VALUE 'go_fill_diff',
       go_stage                      TYPE string VALUE 'go_stage',
       go_commit                     TYPE string VALUE 'go_commit',
       go_branch_overview            TYPE string VALUE 'go_branch_overview',
@@ -482,7 +481,6 @@ INTERFACE zif_abapgit_definitions
       change_order_by               TYPE string VALUE 'change_order_by',
       goto_message                  TYPE string VALUE 'goto_message',
       direction                     TYPE string VALUE 'direction',
-      changed_by                    TYPE string VALUE 'changed_by',
       documentation                 TYPE string VALUE 'documentation',
       changelog                     TYPE string VALUE 'changelog',
     END OF c_action.
@@ -511,5 +509,14 @@ INTERFACE zif_abapgit_definitions
       ignore TYPE ty_method VALUE 'I',
       skip   TYPE ty_method VALUE '?',
     END OF c_method .
+
+  TYPES:
+    ty_languages TYPE STANDARD TABLE OF laiso WITH DEFAULT KEY.
+  TYPES:
+    BEGIN OF ty_i18n_params,
+      main_language         TYPE sy-langu,
+      main_language_only    TYPE abap_bool,
+      translation_languages TYPE ty_languages,
+    END OF ty_i18n_params .
 
 ENDINTERFACE.

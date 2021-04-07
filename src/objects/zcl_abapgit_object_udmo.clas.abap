@@ -96,7 +96,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_udmo IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_UDMO IMPLEMENTATION.
 
 
   METHOD access_free.
@@ -215,7 +215,7 @@ CLASS zcl_abapgit_object_udmo IMPLEMENTATION.
     IF sy-subrc = 1.
       zcx_abapgit_exception=>raise( 'Cancelled' ).
     ELSEIF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'Error from RS_CORR_INSERT' ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
   ENDMETHOD.
 
@@ -415,11 +415,10 @@ CLASS zcl_abapgit_object_udmo IMPLEMENTATION.
     SELECT * FROM dm41s
       INTO TABLE lt_udmo_entities
       WHERE dmoid = mv_data_model
-      AND as4local = mv_activation_state.
-
+      AND as4local = mv_activation_state
+      ORDER BY PRIMARY KEY.
 
     LOOP AT lt_udmo_entities ASSIGNING <ls_udmo_entity>.
-
       " You are reminded that administrative information, such as last changed by user, date, time is not serialised.
       CLEAR <ls_udmo_entity>-lstuser.
       CLEAR <ls_udmo_entity>-lstdate.
@@ -427,7 +426,6 @@ CLASS zcl_abapgit_object_udmo IMPLEMENTATION.
       CLEAR <ls_udmo_entity>-fstuser.
       CLEAR <ls_udmo_entity>-fstdate.
       CLEAR <ls_udmo_entity>-fsttime.
-
     ENDLOOP.
 
     " You are reminded that descriptions in other languages do not have to be in existence, although they may.

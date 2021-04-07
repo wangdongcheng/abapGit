@@ -180,7 +180,7 @@ CLASS ZCL_ABAPGIT_OBJECT_DIAL IMPLEMENTATION.
         OTHERS           = 2.
 
     IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Error from RS_DIALOG_SHOW, DIAL| ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
   ENDMETHOD.
@@ -188,13 +188,14 @@ CLASS ZCL_ABAPGIT_OBJECT_DIAL IMPLEMENTATION.
 
   METHOD zif_abapgit_object~serialize.
 
-    DATA: ls_dialog_module TYPE ty_dialog_module.
+    DATA ls_dialog_module TYPE ty_dialog_module.
 
     ls_dialog_module-tdct = _read_tdct( ).
 
     SELECT * FROM diapar
-             INTO TABLE ls_dialog_module-dia_pars
-             WHERE dnam = ls_dialog_module-tdct-dnam.
+      INTO TABLE ls_dialog_module-dia_pars
+      WHERE dnam = ls_dialog_module-tdct-dnam
+      ORDER BY PRIMARY KEY.
 
     io_xml->add( iv_name = 'DIAL'
                  ig_data = ls_dialog_module ).

@@ -254,8 +254,7 @@ CLASS zcl_abapgit_object_view IMPLEMENTATION.
 
       WHEN OTHERS.
 
-        jump_se11( iv_radio = 'RSRD1-VIMA'
-                   iv_field = 'RSRD1-VIMA_VAL' ).
+        jump_se11( ).
 
     ENDCASE.
 
@@ -283,7 +282,7 @@ CLASS zcl_abapgit_object_view IMPLEMENTATION.
         et_dd28v = lt_dd28v ).
 
     IF ls_dd25v IS INITIAL.
-      RETURN. " does not exist in system
+      zcx_abapgit_exception=>raise( |No active version found for { ms_item-obj_type } { ms_item-obj_name }| ).
     ENDIF.
 
     CLEAR: ls_dd25v-as4user,

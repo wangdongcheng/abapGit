@@ -67,12 +67,105 @@ CLASS ltcl_parser_test DEFINITION FINAL
         VALUE(rv_json) TYPE string.
 
   PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO lcl_json_parser.
+    DATA mo_nodes TYPE REF TO lcl_nodes_helper.
 
+    METHODS setup.
     METHODS parse FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS parse_string FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS parse_number FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS parse_float FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS parse_boolean FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS parse_false FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS parse_null FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS parse_date FOR TESTING RAISING zcx_abapgit_ajson_error.
 
 ENDCLASS.
 
 CLASS ltcl_parser_test IMPLEMENTATION.
+
+  METHOD setup.
+    CREATE OBJECT mo_cut.
+    CREATE OBJECT mo_nodes.
+  ENDMETHOD.
+
+  METHOD parse_string.
+    mo_nodes->add( '                 |         |object |                        |  |1' ).
+    mo_nodes->add( '/                |string   |str    |abc                     |  |0' ).
+
+    DATA lt_act TYPE zif_abapgit_ajson=>ty_nodes_tt.
+    lt_act = mo_cut->parse( '{"string": "abc"}' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_act
+      exp = mo_nodes->mt_nodes ).
+  ENDMETHOD.
+
+  METHOD parse_number.
+    mo_nodes->add( '                 |         |object |                        |  |1' ).
+    mo_nodes->add( '/                |number   |num    |123                     |  |0' ).
+
+    DATA lt_act TYPE zif_abapgit_ajson=>ty_nodes_tt.
+    lt_act = mo_cut->parse( '{"number": 123}' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_act
+      exp = mo_nodes->mt_nodes ).
+  ENDMETHOD.
+
+  METHOD parse_float.
+    mo_nodes->add( '                 |         |object |                        |  |1' ).
+    mo_nodes->add( '/                |float    |num    |123.45                  |  |0' ).
+
+    DATA lt_act TYPE zif_abapgit_ajson=>ty_nodes_tt.
+    CREATE OBJECT mo_cut.
+    lt_act = mo_cut->parse( '{"float": 123.45}' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_act
+      exp = mo_nodes->mt_nodes ).
+  ENDMETHOD.
+
+  METHOD parse_boolean.
+    mo_nodes->add( '                 |         |object |                        |  |1' ).
+    mo_nodes->add( '/                |boolean  |bool   |true                    |  |0' ).
+
+    DATA lt_act TYPE zif_abapgit_ajson=>ty_nodes_tt.
+    lt_act = mo_cut->parse( '{"boolean": true}' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_act
+      exp = mo_nodes->mt_nodes ).
+  ENDMETHOD.
+
+  METHOD parse_false.
+    mo_nodes->add( '                 |         |object |                        |  |1' ).
+    mo_nodes->add( '/                |false    |bool   |false                   |  |0' ).
+
+    DATA lt_act TYPE zif_abapgit_ajson=>ty_nodes_tt.
+    lt_act = mo_cut->parse( '{"false": false}' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_act
+      exp = mo_nodes->mt_nodes ).
+  ENDMETHOD.
+
+  METHOD parse_null.
+    mo_nodes->add( '                 |         |object |                        |  |1' ).
+    mo_nodes->add( '/                |null     |null   |                        |  |0' ).
+
+    DATA lt_act TYPE zif_abapgit_ajson=>ty_nodes_tt.
+    lt_act = mo_cut->parse( '{"null": null}' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_act
+      exp = mo_nodes->mt_nodes ).
+  ENDMETHOD.
+
+  METHOD parse_date.
+    mo_nodes->add( '                 |         |object |                        |  |1' ).
+    mo_nodes->add( '/                |date     |str    |2020-03-15              |  |0' ).
+
+    DATA lt_act TYPE zif_abapgit_ajson=>ty_nodes_tt.
+    lt_act = mo_cut->parse( '{"date": "2020-03-15"}' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_act
+      exp = mo_nodes->mt_nodes ).
+  ENDMETHOD.
 
   METHOD sample_json.
 
@@ -1468,8 +1561,6 @@ CLASS ltcl_writer_test DEFINITION FINAL
 
   PRIVATE SECTION.
 
-    CLASS-DATA gv_sample TYPE string.
-
     METHODS set_ajson FOR TESTING RAISING zcx_abapgit_ajson_error.
     METHODS set_value FOR TESTING RAISING zcx_abapgit_ajson_error.
     METHODS ignore_empty FOR TESTING RAISING zcx_abapgit_ajson_error.
@@ -1907,7 +1998,6 @@ CLASS ltcl_writer_test IMPLEMENTATION.
   METHOD arrays_negative.
 
     DATA lo_cut TYPE REF TO zcl_abapgit_ajson.
-    DATA lo_nodes_exp TYPE REF TO lcl_nodes_helper.
     DATA li_writer TYPE REF TO zif_abapgit_ajson_writer.
 
     lo_cut = zcl_abapgit_ajson=>create_empty( ).

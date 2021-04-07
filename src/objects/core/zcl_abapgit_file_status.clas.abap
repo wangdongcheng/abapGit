@@ -6,66 +6,114 @@ CLASS zcl_abapgit_file_status DEFINITION
   PUBLIC SECTION.
 
     CLASS-METHODS status
-      IMPORTING io_repo           TYPE REF TO zcl_abapgit_repo
-                ii_log            TYPE REF TO zif_abapgit_log OPTIONAL
-      RETURNING VALUE(rt_results) TYPE zif_abapgit_definitions=>ty_results_tt
-      RAISING   zcx_abapgit_exception.
-    CLASS-METHODS: identify_object
-        IMPORTING iv_filename TYPE string
-                  iv_path     TYPE string
-                  iv_devclass TYPE devclass OPTIONAL
-                  io_dot      TYPE REF TO zcl_abapgit_dot_abapgit
-        EXPORTING es_item     TYPE zif_abapgit_definitions=>ty_item
-                  ev_is_xml   TYPE abap_bool
-        RAISING   zcx_abapgit_exception.
-
+      IMPORTING
+        !io_repo          TYPE REF TO zcl_abapgit_repo
+        !ii_log           TYPE REF TO zif_abapgit_log OPTIONAL
+      RETURNING
+        VALUE(rt_results) TYPE zif_abapgit_definitions=>ty_results_tt
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS identify_object
+      IMPORTING
+        !iv_filename TYPE string
+        !iv_path     TYPE string
+        !iv_devclass TYPE devclass OPTIONAL
+        !io_dot      TYPE REF TO zcl_abapgit_dot_abapgit
+      EXPORTING
+        !es_item     TYPE zif_abapgit_definitions=>ty_item
+        !ev_is_xml   TYPE abap_bool
+      RAISING
+        zcx_abapgit_exception .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
-    CLASS-METHODS: calculate_status
-        IMPORTING iv_devclass       TYPE devclass
-                  io_dot            TYPE REF TO zcl_abapgit_dot_abapgit
-                  it_local          TYPE zif_abapgit_definitions=>ty_files_item_tt
-                  it_remote         TYPE zif_abapgit_definitions=>ty_files_tt
-                  it_cur_state      TYPE zif_abapgit_definitions=>ty_file_signatures_tt
-        RETURNING VALUE(rt_results) TYPE zif_abapgit_definitions=>ty_results_tt
-        RAISING   zcx_abapgit_exception,
-      run_checks
-        IMPORTING ii_log     TYPE REF TO zif_abapgit_log
-                  it_results TYPE zif_abapgit_definitions=>ty_results_tt
-                  io_dot     TYPE REF TO zcl_abapgit_dot_abapgit
-                  iv_top     TYPE devclass
-        RAISING   zcx_abapgit_exception,
-      build_existing
-        IMPORTING is_local         TYPE zif_abapgit_definitions=>ty_file_item
-                  is_remote        TYPE zif_abapgit_definitions=>ty_file
-                  it_state         TYPE zif_abapgit_definitions=>ty_file_signatures_ts
-        RETURNING VALUE(rs_result) TYPE zif_abapgit_definitions=>ty_result,
-      build_new_local
-        IMPORTING is_local         TYPE zif_abapgit_definitions=>ty_file_item
-        RETURNING VALUE(rs_result) TYPE zif_abapgit_definitions=>ty_result,
-      build_new_remote
-        IMPORTING iv_devclass      TYPE devclass
-                  io_dot           TYPE REF TO zcl_abapgit_dot_abapgit
-                  is_remote        TYPE zif_abapgit_definitions=>ty_file
-                  it_items         TYPE zif_abapgit_definitions=>ty_items_ts
-                  it_state         TYPE zif_abapgit_definitions=>ty_file_signatures_ts
-        RETURNING VALUE(rs_result) TYPE zif_abapgit_definitions=>ty_result
-        RAISING   zcx_abapgit_exception,
-      get_object_package
-        IMPORTING
-          iv_object          TYPE tadir-object
-          iv_obj_name        TYPE tadir-obj_name
-        RETURNING
-          VALUE(rv_devclass) TYPE devclass
-        RAISING
-          zcx_abapgit_exception .
-
+    CLASS-METHODS calculate_status
+      IMPORTING
+        !iv_devclass      TYPE devclass
+        !io_dot           TYPE REF TO zcl_abapgit_dot_abapgit
+        !it_local         TYPE zif_abapgit_definitions=>ty_files_item_tt
+        !it_remote        TYPE zif_abapgit_definitions=>ty_files_tt
+        !it_cur_state     TYPE zif_abapgit_definitions=>ty_file_signatures_tt
+      RETURNING
+        VALUE(rt_results) TYPE zif_abapgit_definitions=>ty_results_tt
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS run_checks
+      IMPORTING
+        !ii_log     TYPE REF TO zif_abapgit_log
+        !it_results TYPE zif_abapgit_definitions=>ty_results_tt
+        !io_dot     TYPE REF TO zcl_abapgit_dot_abapgit
+        !iv_top     TYPE devclass
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS build_existing
+      IMPORTING
+        !is_local        TYPE zif_abapgit_definitions=>ty_file_item
+        !is_remote       TYPE zif_abapgit_definitions=>ty_file
+        !it_state        TYPE zif_abapgit_definitions=>ty_file_signatures_ts
+      RETURNING
+        VALUE(rs_result) TYPE zif_abapgit_definitions=>ty_result .
+    CLASS-METHODS build_new_local
+      IMPORTING
+        !is_local        TYPE zif_abapgit_definitions=>ty_file_item
+      RETURNING
+        VALUE(rs_result) TYPE zif_abapgit_definitions=>ty_result .
+    CLASS-METHODS build_new_remote
+      IMPORTING
+        !iv_devclass     TYPE devclass
+        !io_dot          TYPE REF TO zcl_abapgit_dot_abapgit
+        !is_remote       TYPE zif_abapgit_definitions=>ty_file
+        !it_items        TYPE zif_abapgit_definitions=>ty_items_ts
+        !it_state        TYPE zif_abapgit_definitions=>ty_file_signatures_ts
+      RETURNING
+        VALUE(rs_result) TYPE zif_abapgit_definitions=>ty_result
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS get_object_package
+      IMPORTING
+        !iv_object         TYPE tadir-object
+        !iv_obj_name       TYPE tadir-obj_name
+      RETURNING
+        VALUE(rv_devclass) TYPE devclass
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS check_package_move
+      IMPORTING
+        !ii_log     TYPE REF TO zif_abapgit_log
+        !it_results TYPE zif_abapgit_definitions=>ty_results_tt
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS check_files_folder
+      IMPORTING
+        !ii_log     TYPE REF TO zif_abapgit_log
+        !it_results TYPE zif_abapgit_definitions=>ty_results_tt
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS check_package_folder
+      IMPORTING
+        !ii_log     TYPE REF TO zif_abapgit_log
+        !it_results TYPE zif_abapgit_definitions=>ty_results_tt
+        !io_dot     TYPE REF TO zcl_abapgit_dot_abapgit
+        !iv_top     TYPE devclass
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS check_multiple_files
+      IMPORTING
+        !ii_log     TYPE REF TO zif_abapgit_log
+        !it_results TYPE zif_abapgit_definitions=>ty_results_tt
+      RAISING
+        zcx_abapgit_exception .
+    CLASS-METHODS check_namespace
+      IMPORTING
+        !ii_log     TYPE REF TO zif_abapgit_log
+        !it_results TYPE zif_abapgit_definitions=>ty_results_tt
+      RAISING
+        zcx_abapgit_exception .
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
+CLASS zcl_abapgit_file_status IMPLEMENTATION.
 
 
   METHOD build_existing.
@@ -332,11 +380,13 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
       " Check if same file exists in different location
       READ TABLE it_local ASSIGNING <ls_local>
         WITH KEY file-filename = <ls_remote>-filename.
-      IF sy-subrc = 0 AND <ls_local>-file-sha1 = <ls_remote>-sha1.
+      IF sy-subrc = 0.
         <ls_result>-match = abap_false.
         <ls_result>-lstate = zif_abapgit_definitions=>c_state-deleted.
         <ls_result>-rstate = zif_abapgit_definitions=>c_state-unchanged.
-        <ls_result>-packmove = abap_true.
+        IF <ls_local>-file-sha1 = <ls_remote>-sha1.
+          <ls_result>-packmove = abap_true.
+        ENDIF.
       ELSEIF sy-subrc = 4.
         " Check if file existed before and was deleted locally
         READ TABLE lt_state_idx ASSIGNING <ls_state>
@@ -351,7 +401,187 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
     SORT rt_results BY
       obj_type ASCENDING
       obj_name ASCENDING
-      filename ASCENDING.
+      filename ASCENDING
+      path ASCENDING.
+
+  ENDMETHOD.
+
+
+  METHOD check_files_folder.
+
+    DATA:
+      ls_item     TYPE zif_abapgit_definitions=>ty_item,
+      lt_res_sort LIKE it_results,
+      lt_item_idx LIKE it_results.
+
+    FIELD-SYMBOLS:
+      <ls_result>     LIKE LINE OF it_results,
+      <ls_result_idx> LIKE LINE OF it_results.
+
+    " Collect object index
+    lt_res_sort = it_results.
+    SORT lt_res_sort BY obj_type ASCENDING obj_name ASCENDING.
+
+    LOOP AT it_results ASSIGNING <ls_result> WHERE NOT obj_type IS INITIAL AND packmove = abap_false.
+
+      IF NOT ( <ls_result>-obj_type = ls_item-obj_type
+          AND <ls_result>-obj_name = ls_item-obj_name ).
+        APPEND INITIAL LINE TO lt_item_idx ASSIGNING <ls_result_idx>.
+        <ls_result_idx>-obj_type = <ls_result>-obj_type.
+        <ls_result_idx>-obj_name = <ls_result>-obj_name.
+        <ls_result_idx>-path     = <ls_result>-path.
+        MOVE-CORRESPONDING <ls_result> TO ls_item.
+      ENDIF.
+
+    ENDLOOP.
+
+    LOOP AT it_results ASSIGNING <ls_result>
+      WHERE NOT obj_type IS INITIAL AND obj_type <> 'DEVC' AND packmove = abap_false.
+
+      READ TABLE lt_item_idx ASSIGNING <ls_result_idx>
+        WITH KEY obj_type = <ls_result>-obj_type obj_name = <ls_result>-obj_name
+        BINARY SEARCH. " Sorted above
+
+      IF sy-subrc <> 0 OR <ls_result>-path <> <ls_result_idx>-path. " All paths are same
+        ii_log->add( iv_msg = |Files for object { <ls_result>-obj_type } {
+                              <ls_result>-obj_name } are not placed in the same folder|
+                     iv_type = 'W'
+                     iv_rc   = '1' ).
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD check_multiple_files.
+
+    DATA:
+      lt_res_sort LIKE it_results,
+      ls_file     TYPE zif_abapgit_definitions=>ty_file_signature.
+
+    FIELD-SYMBOLS <ls_result> LIKE LINE OF it_results.
+
+    lt_res_sort = it_results.
+    SORT lt_res_sort BY filename ASCENDING.
+
+    LOOP AT lt_res_sort ASSIGNING <ls_result> WHERE obj_type <> 'DEVC' AND packmove = abap_false.
+      IF <ls_result>-filename IS NOT INITIAL AND <ls_result>-filename = ls_file-filename.
+        ii_log->add( iv_msg  = |Multiple files with same filename, { <ls_result>-filename }|
+                     iv_type = 'W'
+                     iv_rc   = '3' ).
+      ENDIF.
+
+      IF <ls_result>-filename IS INITIAL.
+        ii_log->add( iv_msg  = |Filename is empty for object { <ls_result>-obj_type } { <ls_result>-obj_name }|
+                     iv_type = 'W'
+                     iv_rc   = '4' ).
+      ENDIF.
+
+      MOVE-CORRESPONDING <ls_result> TO ls_file.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD check_namespace.
+
+    DATA:
+      lv_namespace TYPE namespace,
+      lt_namespace TYPE TABLE OF namespace,
+      ls_trnspace  TYPE trnspace.
+
+    FIELD-SYMBOLS <ls_result> LIKE LINE OF it_results.
+
+    " Collect all namespaces based on name of xml-files
+    LOOP AT it_results ASSIGNING <ls_result>.
+      FIND REGEX '#([a-zA-Z0-9]+)#.*\..*\.xml' IN <ls_result>-filename SUBMATCHES lv_namespace.
+      IF sy-subrc = 0.
+        lv_namespace = '/' && to_upper( lv_namespace ) && '/'.
+        COLLECT lv_namespace INTO lt_namespace.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_namespace INTO lv_namespace.
+      CALL FUNCTION 'TR_READ_NAMESPACE'
+        EXPORTING
+          iv_namespace           = lv_namespace
+        IMPORTING
+          es_trnspace            = ls_trnspace
+        EXCEPTIONS
+          namespace_not_existing = 1
+          OTHERS                 = 2.
+      IF sy-subrc <> 0.
+        ii_log->add( iv_msg  = |Namespace { lv_namespace } does not exist. Create it in transaction SE03|
+                     iv_type = 'W'
+                     iv_rc   = '6' ).
+      ELSEIF ls_trnspace-editflag <> 'X'.
+        ii_log->add( iv_msg  = |Namespace { lv_namespace } is not modifiable. Check it in transaction SE03|
+                     iv_type = 'W'
+                     iv_rc   = '6' ).
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD check_package_folder.
+
+    DATA:
+      lv_path         TYPE string,
+      lo_folder_logic TYPE REF TO zcl_abapgit_folder_logic.
+
+    FIELD-SYMBOLS <ls_result> LIKE LINE OF it_results.
+
+    lo_folder_logic = zcl_abapgit_folder_logic=>get_instance( ).
+
+    LOOP AT it_results ASSIGNING <ls_result>
+      WHERE NOT package IS INITIAL AND NOT path IS INITIAL AND packmove = abap_false.
+
+      lv_path = lo_folder_logic->package_to_path(
+        iv_top     = iv_top
+        io_dot     = io_dot
+        iv_package = <ls_result>-package ).
+
+      IF lv_path <> <ls_result>-path.
+        ii_log->add( iv_msg = |Package and path does not match for object, {
+                       <ls_result>-obj_type } { <ls_result>-obj_name }|
+                     iv_type = 'W'
+                     iv_rc   = '2' ).
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD check_package_move.
+
+    DATA:
+      lt_move_idx LIKE it_results.
+
+    FIELD-SYMBOLS:
+      <ls_result>      LIKE LINE OF it_results,
+      <ls_result_move> LIKE LINE OF it_results.
+
+    LOOP AT it_results ASSIGNING <ls_result>
+      WHERE lstate = zif_abapgit_definitions=>c_state-added AND packmove = abap_true.
+
+      READ TABLE lt_move_idx TRANSPORTING NO FIELDS
+        WITH KEY obj_type = <ls_result>-obj_type obj_name = <ls_result>-obj_name
+        BINARY SEARCH. " Sorted since it_result is sorted
+      IF sy-subrc <> 0.
+        ii_log->add( iv_msg  = |Changed package assignment for object {
+                               <ls_result>-obj_type } { <ls_result>-obj_name }|
+                     iv_type = 'W'
+                     iv_rc   = '5' ).
+        APPEND INITIAL LINE TO lt_move_idx ASSIGNING <ls_result_move>.
+        <ls_result_move>-obj_type = <ls_result>-obj_type.
+        <ls_result_move>-obj_name = <ls_result>-obj_name.
+        <ls_result_move>-path     = <ls_result>-path.
+      ENDIF.
+
+    ENDLOOP.
 
   ENDMETHOD.
 
@@ -412,103 +642,37 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
 
   METHOD run_checks.
 
-    DATA: lv_path         TYPE string,
-          ls_item         TYPE zif_abapgit_definitions=>ty_item,
-          ls_file         TYPE zif_abapgit_definitions=>ty_file_signature,
-          lt_res_sort     LIKE it_results,
-          lt_item_idx     LIKE it_results,
-          lt_move_idx     LIKE it_results,
-          lo_folder_logic TYPE REF TO zcl_abapgit_folder_logic.
-
-    FIELD-SYMBOLS: <ls_res1> LIKE LINE OF it_results,
-                   <ls_res2> LIKE LINE OF it_results.
-
     " This method just adds messages to the log. No log, nothing to do here
     IF ii_log IS INITIAL.
       RETURN.
     ENDIF.
 
     " Find all objects which were assigned to a different package
-    LOOP AT it_results ASSIGNING <ls_res1>
-      WHERE lstate = zif_abapgit_definitions=>c_state-added AND packmove = abap_true.
-      READ TABLE lt_move_idx TRANSPORTING NO FIELDS
-        WITH KEY obj_type = <ls_res1>-obj_type obj_name = <ls_res1>-obj_name
-        BINARY SEARCH. " Sorted since it_result is sorted
-      IF sy-subrc <> 0.
-        ii_log->add( iv_msg  = |Changed package assignment for object { <ls_res1>-obj_type } { <ls_res1>-obj_name }|
-                     iv_type = 'W'
-                     iv_rc   = '5' ).
-        APPEND INITIAL LINE TO lt_move_idx ASSIGNING <ls_res2>.
-        <ls_res2>-obj_type = <ls_res1>-obj_type.
-        <ls_res2>-obj_name = <ls_res1>-obj_name.
-        <ls_res2>-path     = <ls_res1>-path.
-      ENDIF.
-    ENDLOOP.
-
-    " Collect object indexe
-    lt_res_sort = it_results.
-    SORT lt_res_sort BY obj_type ASCENDING obj_name ASCENDING.
-
-    LOOP AT it_results ASSIGNING <ls_res1> WHERE NOT obj_type IS INITIAL AND packmove = abap_false.
-      IF NOT ( <ls_res1>-obj_type = ls_item-obj_type
-          AND <ls_res1>-obj_name = ls_item-obj_name ).
-        APPEND INITIAL LINE TO lt_item_idx ASSIGNING <ls_res2>.
-        <ls_res2>-obj_type = <ls_res1>-obj_type.
-        <ls_res2>-obj_name = <ls_res1>-obj_name.
-        <ls_res2>-path     = <ls_res1>-path.
-        MOVE-CORRESPONDING <ls_res1> TO ls_item.
-      ENDIF.
-    ENDLOOP.
+    check_package_move(
+      ii_log     = ii_log
+      it_results = it_results ).
 
     " Check files for one object is in the same folder
-    LOOP AT it_results ASSIGNING <ls_res1>
-      WHERE NOT obj_type IS INITIAL AND obj_type <> 'DEVC' AND packmove = abap_false.
-      READ TABLE lt_item_idx ASSIGNING <ls_res2>
-        WITH KEY obj_type = <ls_res1>-obj_type obj_name = <ls_res1>-obj_name
-        BINARY SEARCH. " Sorted above
-
-      IF sy-subrc <> 0 OR <ls_res1>-path <> <ls_res2>-path. " All paths are same
-        ii_log->add( iv_msg = |Files for object { <ls_res1>-obj_type } {
-                       <ls_res1>-obj_name } are not placed in the same folder|
-                     iv_type = 'W'
-                     iv_rc   = '1' ).
-      ENDIF.
-    ENDLOOP.
+    check_files_folder(
+      ii_log     = ii_log
+      it_results = it_results ).
 
     " Check that objects are created in package corresponding to folder
-    lo_folder_logic = zcl_abapgit_folder_logic=>get_instance( ).
-    LOOP AT it_results ASSIGNING <ls_res1>
-      WHERE NOT package IS INITIAL AND NOT path IS INITIAL AND packmove = abap_false.
-      lv_path = lo_folder_logic->package_to_path(
-        iv_top     = iv_top
-        io_dot     = io_dot
-        iv_package = <ls_res1>-package ).
-      IF lv_path <> <ls_res1>-path.
-        ii_log->add( iv_msg = |Package and path does not match for object, {
-                       <ls_res1>-obj_type } { <ls_res1>-obj_name }|
-                     iv_type = 'W'
-                     iv_rc   = '2' ).
-      ENDIF.
-    ENDLOOP.
+    check_package_folder(
+      ii_log     = ii_log
+      it_results = it_results
+      io_dot     = io_dot
+      iv_top     = iv_top ).
 
     " Check for multiple files with same filename
-    SORT lt_res_sort BY filename ASCENDING.
+    check_multiple_files(
+      ii_log     = ii_log
+      it_results = it_results ).
 
-    LOOP AT lt_res_sort ASSIGNING <ls_res1> WHERE obj_type <> 'DEVC' AND packmove = abap_false.
-      IF <ls_res1>-filename IS NOT INITIAL AND <ls_res1>-filename = ls_file-filename.
-        ii_log->add( iv_msg  = |Multiple files with same filename, { <ls_res1>-filename }|
-                     iv_type = 'W'
-                     iv_rc   = '3' ).
-      ENDIF.
-
-      IF <ls_res1>-filename IS INITIAL.
-        ii_log->add( iv_msg  = |Filename is empty for object { <ls_res1>-obj_type } { <ls_res1>-obj_name }|
-                     iv_type = 'W'
-                     iv_rc   = '4' ).
-      ENDIF.
-
-      MOVE-CORRESPONDING <ls_res1> TO ls_file.
-    ENDLOOP.
+    " Check if namespaces exist already
+    check_namespace(
+      ii_log     = ii_log
+      it_results = it_results ).
 
   ENDMETHOD.
 
@@ -516,6 +680,8 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
   METHOD status.
 
     DATA lt_local TYPE zif_abapgit_definitions=>ty_files_item_tt.
+    DATA lt_remote TYPE zif_abapgit_definitions=>ty_files_tt.
+    DATA li_exit TYPE REF TO zif_abapgit_exit.
 
     lt_local = io_repo->get_files_local( ii_log ).
 
@@ -527,11 +693,21 @@ CLASS ZCL_ABAPGIT_FILE_STATUS IMPLEMENTATION.
       io_repo->find_remote_dot_abapgit( ).
     ENDIF.
 
+    lt_remote = io_repo->get_files_remote( ).
+
+    li_exit = zcl_abapgit_exit=>get_instance( ).
+    li_exit->pre_calculate_repo_status(
+      EXPORTING
+        is_repo_meta = io_repo->ms_data
+      CHANGING
+        ct_local  = lt_local
+        ct_remote = lt_remote ).
+
     rt_results = calculate_status(
       iv_devclass  = io_repo->get_package( )
       io_dot       = io_repo->get_dot_abapgit( )
-      it_local     = io_repo->get_files_local( ii_log )
-      it_remote    = io_repo->get_files_remote( )
+      it_local     = lt_local
+      it_remote    = lt_remote
       it_cur_state = io_repo->get_local_checksums_per_file( ) ).
 
     run_checks(

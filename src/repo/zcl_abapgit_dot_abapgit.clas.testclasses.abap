@@ -11,7 +11,6 @@ CLASS ltcl_dot_abapgit DEFINITION FOR TESTING DURATION SHORT RISK LEVEL HARMLESS
 
 ENDCLASS.
 
-
 CLASS ltcl_dot_abapgit IMPLEMENTATION.
 
   METHOD identity.
@@ -52,7 +51,7 @@ CLASS ltcl_dot_abapgit IMPLEMENTATION.
       act = lv_ignored
       exp = abap_false ).
 
-" Add file to ignore list -> expect to be ignored
+    " Add file to ignore list -> expect to be ignored
     lo_dot->add_ignore( iv_path = lc_path
                         iv_filename = lc_filename ).
 
@@ -62,7 +61,7 @@ CLASS ltcl_dot_abapgit IMPLEMENTATION.
       act = lv_ignored
       exp = abap_true ).
 
-" Remove file from ignore list -> expect to be allowed
+    " Remove file from ignore list -> expect to be allowed
     lo_dot->remove_ignore( iv_path = lc_path
                            iv_filename = lc_filename ).
 

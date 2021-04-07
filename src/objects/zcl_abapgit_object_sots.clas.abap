@@ -40,7 +40,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_SOTS IMPLEMENTATION.
+CLASS zcl_abapgit_object_sots IMPLEMENTATION.
 
 
   METHOD create_sots.
@@ -87,7 +87,8 @@ CLASS ZCL_ABAPGIT_OBJECT_SOTS IMPLEMENTATION.
       WHEN 3.
         zcx_abapgit_exception=>raise( |Enter a permitted object type| ).
       WHEN 4.
-        zcx_abapgit_exception=>raise( |The concept will be created in the non-original system| ).
+        "The concept will be created in the non-original system (not an error)
+        RETURN.
       WHEN 5.
         zcx_abapgit_exception=>raise( |Invalid alias| ).
       WHEN 6.
@@ -199,7 +200,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SOTS IMPLEMENTATION.
           OTHERS              = 7.
 
       IF sy-subrc <> 0.
-        zcx_abapgit_exception=>raise( |Error in BTFR_DELETE_SINGLE_TEXT subrc={ sy-subrc }| ).
+        zcx_abapgit_exception=>raise_t100( ).
       ENDIF.
 
     ENDLOOP.
@@ -338,7 +339,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SOTS IMPLEMENTATION.
         OTHERS              = 3.
 
     IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Error from RS_TOOL_ACCESS Subrc={ sy-subrc }| ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
   ENDMETHOD.

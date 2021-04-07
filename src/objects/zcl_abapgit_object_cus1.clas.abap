@@ -114,7 +114,7 @@ CLASS zcl_abapgit_object_cus1 IMPLEMENTATION.
         unknown_objectclass = 3
         OTHERS              = 4.
     IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'error from RS_CORR_INSERT, CUS0' ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
   ENDMETHOD.
@@ -213,7 +213,7 @@ CLASS zcl_abapgit_object_cus1 IMPLEMENTATION.
            ls_customzing_activity-activity_header-ldatetime,
            ls_customzing_activity-activity_header-luser.
 
-    IF io_xml->i18n_params( )-serialize_master_lang_only = abap_true.
+    IF io_xml->i18n_params( )-main_language_only = abap_true.
       DELETE ls_customzing_activity-activity_title WHERE spras <> mv_language.
     ENDIF.
 

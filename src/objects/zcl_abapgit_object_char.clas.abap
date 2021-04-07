@@ -266,7 +266,7 @@ CLASS ZCL_ABAPGIT_OBJECT_CHAR IMPLEMENTATION.
         OTHERS              = 3.
 
     IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Error from RS_TOOL_ACCESS, CHAR| ).
+      zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
   ENDMETHOD.
@@ -291,15 +291,18 @@ CLASS ZCL_ABAPGIT_OBJECT_CHAR IMPLEMENTATION.
 
     SELECT * FROM cls_attributet INTO TABLE ls_char-cls_attributet
       WHERE name = ms_item-obj_name
-      AND activation_state = lc_active.
+      AND activation_state = lc_active
+      ORDER BY PRIMARY KEY.
 
     SELECT * FROM cls_attr_value INTO TABLE ls_char-cls_attr_value
       WHERE name = ms_item-obj_name
-      AND activation_state = lc_active.
+      AND activation_state = lc_active
+      ORDER BY PRIMARY KEY.
 
     SELECT * FROM cls_attr_valuet INTO TABLE ls_char-cls_attr_valuet
       WHERE name = ms_item-obj_name
-      AND activation_state = lc_active.
+      AND activation_state = lc_active
+      ORDER BY PRIMARY KEY.
 
     io_xml->add( iv_name = 'CHAR'
                  ig_data = ls_char ).

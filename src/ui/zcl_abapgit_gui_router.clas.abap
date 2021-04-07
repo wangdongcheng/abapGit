@@ -16,21 +16,21 @@ CLASS zcl_abapgit_gui_router DEFINITION
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS abapgit_services_actions
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS db_actions
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     CLASS-METHODS file_download
       IMPORTING
         !iv_package TYPE devclass
@@ -43,42 +43,42 @@ CLASS zcl_abapgit_gui_router DEFINITION
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS remote_origin_manipulations
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS sap_gui_actions
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS other_utilities
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS zip_services
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS repository_services
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
       RETURNING
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS get_page_diff
       IMPORTING
         !ii_event      TYPE REF TO zif_abapgit_gui_event
@@ -100,13 +100,6 @@ CLASS zcl_abapgit_gui_router DEFINITION
         VALUE(ri_page) TYPE REF TO zif_abapgit_gui_renderable
       RAISING
         zcx_abapgit_exception .
-    METHODS get_page_background
-      IMPORTING
-        !iv_key        TYPE zif_abapgit_persistence=>ty_repo-key
-      RETURNING
-        VALUE(ri_page) TYPE REF TO zif_abapgit_gui_renderable
-      RAISING
-        zcx_abapgit_exception .
     CLASS-METHODS jump_display_transport
       IMPORTING
         !iv_transport TYPE trkorr
@@ -121,22 +114,22 @@ CLASS zcl_abapgit_gui_router DEFINITION
       IMPORTING
         !iv_url TYPE csequence
       RAISING
-        zcx_abapgit_exception.
+        zcx_abapgit_exception .
     METHODS get_state_settings
       IMPORTING
         !ii_event       TYPE REF TO zif_abapgit_gui_event
       RETURNING
-        VALUE(rv_state) TYPE i.
+        VALUE(rv_state) TYPE i .
     METHODS get_state_diff
       IMPORTING
         !ii_event       TYPE REF TO zif_abapgit_gui_event
       RETURNING
-        VALUE(rv_state) TYPE i.
+        VALUE(rv_state) TYPE i .
     METHODS get_state_db_edit
       IMPORTING
         !ii_event       TYPE REF TO zif_abapgit_gui_event
       RETURNING
-        VALUE(rv_state) TYPE i.
+        VALUE(rv_state) TYPE i .
 ENDCLASS.
 
 
@@ -145,16 +138,13 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
 
 
   METHOD abapgit_services_actions.
-    DATA: li_main_page TYPE REF TO zcl_abapgit_gui_page_main.
-    CASE ii_event->mv_action.
-      WHEN zif_abapgit_definitions=>c_action-abapgit_home.
-        CREATE OBJECT li_main_page.
-        rs_handled-page = li_main_page.
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
-      WHEN zif_abapgit_definitions=>c_action-abapgit_install.                 " Install abapGit
-        zcl_abapgit_services_abapgit=>install_abapgit( ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
-    ENDCASE.
+    DATA li_main_page TYPE REF TO zcl_abapgit_gui_page_main.
+
+    IF ii_event->mv_action = zif_abapgit_definitions=>c_action-abapgit_home.
+      CREATE OBJECT li_main_page.
+      rs_handled-page = li_main_page.
+      rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -237,21 +227,19 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
 
     DATA: lv_key           TYPE zif_abapgit_persistence=>ty_repo-key,
           lv_last_repo_key TYPE zif_abapgit_persistence=>ty_repo-key,
-          lt_repo_list     TYPE zif_abapgit_persistence=>ty_repos.
-
+          lt_repo_obj_list TYPE zif_abapgit_repo_srv=>ty_repo_list.
 
     lv_key = ii_event->query( )->get( 'KEY' ).
 
     CASE ii_event->mv_action.
       WHEN zcl_abapgit_gui=>c_action-go_home.
         lv_last_repo_key = zcl_abapgit_persistence_user=>get_instance( )->get_repo_show( ).
-        lt_repo_list = zcl_abapgit_persist_factory=>get_repo( )->list( ).
-
+        lt_repo_obj_list = zcl_abapgit_repo_srv=>get_instance( )->list( ).
         IF lv_last_repo_key IS NOT INITIAL.
           CREATE OBJECT rs_handled-page TYPE zcl_abapgit_gui_page_repo_view
             EXPORTING
               iv_key = lv_last_repo_key.
-        ELSEIF lt_repo_list IS NOT INITIAL.
+        ELSEIF lt_repo_obj_list IS NOT INITIAL.
           CREATE OBJECT rs_handled-page TYPE zcl_abapgit_gui_page_main.
         ELSE.
           rs_handled-page = zcl_abapgit_gui_page_tutorial=>create( ).
@@ -272,12 +260,10 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
         rs_handled-page  = zcl_abapgit_gui_page_sett_pers=>create( ).
         rs_handled-state = get_state_settings( ii_event ).
       WHEN zif_abapgit_definitions=>c_action-go_background_run.              " Go background run page
-        CREATE OBJECT rs_handled-page TYPE zcl_abapgit_gui_page_bkg_run.
+        rs_handled-page  = zcl_abapgit_gui_page_run_bckg=>create( ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
-      WHEN zif_abapgit_definitions=>c_action-go_background.                   " Go Background page
-        rs_handled-page  = get_page_background( lv_key ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
-      WHEN zif_abapgit_definitions=>c_action-go_diff.                         " Go Diff page
+      WHEN zif_abapgit_definitions=>c_action-go_repo_diff                         " Go Diff page
+        OR zif_abapgit_definitions=>c_action-go_file_diff.
         rs_handled-page  = get_page_diff( ii_event ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page_w_bookmark.
       WHEN zif_abapgit_definitions=>c_action-go_stage.                        " Go Staging page
@@ -300,15 +286,6 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
         rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
 
     ENDCASE.
-
-  ENDMETHOD.
-
-
-  METHOD get_page_background.
-
-    CREATE OBJECT ri_page TYPE zcl_abapgit_gui_page_bkg
-      EXPORTING
-        iv_key = iv_key.
 
   ENDMETHOD.
 
@@ -563,17 +540,10 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
 
   METHOD other_utilities.
 
-    CASE ii_event->mv_action.
-      WHEN zif_abapgit_definitions=>c_action-changed_by.
-        zcl_abapgit_services_basis=>test_changed_by( ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
-      WHEN zif_abapgit_definitions=>c_action-performance_test.
-        zcl_abapgit_services_basis=>run_performance_test( ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
-      WHEN zif_abapgit_definitions=>c_action-ie_devtools.
-        zcl_abapgit_services_basis=>open_ie_devtools( ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
-    ENDCASE.
+    IF ii_event->mv_action = zif_abapgit_definitions=>c_action-ie_devtools.
+      zcl_abapgit_services_basis=>open_ie_devtools( ).
+      rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -586,15 +556,17 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
     lv_key = ii_event->query( )->get( 'KEY' ).
 
     CASE ii_event->mv_action.
-      WHEN zif_abapgit_definitions=>c_action-repo_remote_attach.            " Remote attach
+      WHEN zif_abapgit_definitions=>c_action-repo_remote_attach.
         zcl_abapgit_services_repo=>remote_attach( lv_key ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
-      WHEN zif_abapgit_definitions=>c_action-repo_remote_detach.            " Remote detach
+      WHEN zif_abapgit_definitions=>c_action-repo_remote_detach.
         zcl_abapgit_services_repo=>remote_detach( lv_key ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
-      WHEN zif_abapgit_definitions=>c_action-repo_remote_change.            " Remote change
-        zcl_abapgit_services_repo=>remote_change( lv_key ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+      WHEN zif_abapgit_definitions=>c_action-repo_remote_change.
+        CREATE OBJECT rs_handled-page TYPE zcl_abapgit_gui_page_ch_remote
+          EXPORTING
+            iv_key = lv_key.
+        rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
     ENDCASE.
 
   ENDMETHOD.
@@ -658,6 +630,9 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
       WHEN zif_abapgit_definitions=>c_action-repo_local_settings.             " Local repo settings
         rs_handled-page  = zcl_abapgit_gui_page_sett_locl=>create( lo_repo ).
         rs_handled-state = get_state_settings( ii_event ).
+      WHEN zif_abapgit_definitions=>c_action-repo_background.                 " Repo background mode
+        rs_handled-page  = zcl_abapgit_gui_page_sett_bckg=>create( lo_repo ).
+        rs_handled-state = get_state_settings( ii_event ).
       WHEN zif_abapgit_definitions=>c_action-repo_infos.                      " Repo infos
         rs_handled-page  = zcl_abapgit_gui_page_sett_info=>create( lo_repo ).
         rs_handled-state = get_state_settings( ii_event ).
@@ -680,6 +655,7 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
       WHEN zif_abapgit_definitions=>c_action-jump.                          " Open object editor
         ls_item-obj_type = ii_event->query( )->get( 'TYPE' ).
         ls_item-obj_name = ii_event->query( )->get( 'NAME' ).
+        ls_item-obj_name = cl_http_utility=>unescape_url( |{ ls_item-obj_name }| ).
 
         li_html_viewer = zcl_abapgit_ui_factory=>get_html_viewer( ).
 
@@ -750,11 +726,10 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
 
   METHOD zip_services.
 
-    DATA: lv_key     TYPE zif_abapgit_persistence=>ty_repo-key,
-          lo_repo    TYPE REF TO zcl_abapgit_repo,
-          lv_package TYPE devclass,
-          lv_path    TYPE string,
-          lv_xstr    TYPE xstring.
+    DATA: lv_key  TYPE zif_abapgit_persistence=>ty_repo-key,
+          lo_repo TYPE REF TO zcl_abapgit_repo,
+          lv_path TYPE string,
+          lv_xstr TYPE xstring.
 
     CONSTANTS:
       BEGIN OF lc_page,
@@ -793,18 +768,14 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
                        iv_xstr    = lv_xstr ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
       WHEN zif_abapgit_definitions=>c_action-zip_package.                     " Export package as ZIP
-        zcl_abapgit_zip=>export_package( IMPORTING
-          ev_xstr    = lv_xstr
-          ev_package = lv_package ).
-        file_download( iv_package = lv_package
-                       iv_xstr    = lv_xstr ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
+        rs_handled-page  = zcl_abapgit_gui_page_ex_pckage=>create( ).
+        rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
       WHEN zif_abapgit_definitions=>c_action-zip_transport.                   " Export transports as ZIP
         zcl_abapgit_transport_mass=>run( ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
       WHEN zif_abapgit_definitions=>c_action-zip_object.                      " Export object as ZIP
-        zcl_abapgit_zip=>export_object( ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
+        rs_handled-page  = zcl_abapgit_gui_page_ex_object=>create( ).
+        rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
     ENDCASE.
 
   ENDMETHOD.

@@ -5,6 +5,8 @@ CLASS zcl_abapgit_repo DEFINITION
 
   PUBLIC SECTION.
 
+    DATA ms_data TYPE zif_abapgit_persistence=>ty_repo  READ-ONLY.
+
     METHODS bind_listener
       IMPORTING
         !ii_listener TYPE REF TO zif_abapgit_repo_listener .
@@ -72,6 +74,8 @@ CLASS zcl_abapgit_repo DEFINITION
     METHODS refresh
       IMPORTING
         !iv_drop_cache TYPE abap_bool DEFAULT abap_false
+        !iv_drop_log   TYPE abap_bool DEFAULT abap_true
+          PREFERRED PARAMETER iv_drop_cache
       RAISING
         zcx_abapgit_exception .
     METHODS update_local_checksums
@@ -137,12 +141,16 @@ CLASS zcl_abapgit_repo DEFINITION
       RAISING
         zcx_abapgit_exception .
     METHODS reset_status .
+    METHODS get_unsupported_objects_local
+      RETURNING
+        VALUE(rt_objects) TYPE zif_abapgit_definitions=>ty_items_tt
+      RAISING
+        zcx_abapgit_exception .
   PROTECTED SECTION.
 
     DATA mt_local TYPE zif_abapgit_definitions=>ty_files_item_tt .
     DATA mt_remote TYPE zif_abapgit_definitions=>ty_files_tt .
     DATA mv_request_local_refresh TYPE abap_bool .
-    DATA ms_data TYPE zif_abapgit_persistence=>ty_repo .
     DATA mv_request_remote_refresh TYPE abap_bool .
     DATA mt_status TYPE zif_abapgit_definitions=>ty_results_tt .
     DATA mi_log TYPE REF TO zif_abapgit_log .
@@ -209,7 +217,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
+CLASS zcl_abapgit_repo IMPLEMENTATION.
 
 
   METHOD bind_listener.
@@ -252,7 +260,7 @@ CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
                                  && |'{ zcl_abapgit_convert=>conversion_exit_isola_output( sy-langu ) }'|
                                  && | does not match main language |
                                  && |'{ zcl_abapgit_convert=>conversion_exit_isola_output( lv_master_language ) }'.|
-                                 && | Run 'Advanced' > 'Open in main language'| ).
+                                 && | Select 'Advanced' > 'Open in Main Language'| ).
     ENDIF.
 
   ENDMETHOD.
@@ -323,6 +331,7 @@ CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
   METHOD deserialize.
 
     DATA: lt_updated_files TYPE zif_abapgit_definitions=>ty_file_signatures_tt,
+          lt_result        TYPE zif_abapgit_data_deserializer=>ty_results,
           lx_error         TYPE REF TO zcx_abapgit_exception.
 
     find_remote_dot_abapgit( ).
@@ -343,6 +352,7 @@ CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
       zcx_abapgit_exception=>raise( |No transport request was supplied| ).
     ENDIF.
 
+    " Deserialize objects
     TRY.
         lt_updated_files = zcl_abapgit_objects=>deserialize(
             io_repo   = me
@@ -356,9 +366,15 @@ CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
 
     APPEND get_dot_abapgit( )->get_signature( ) TO lt_updated_files.
 
+    update_local_checksums( lt_updated_files ).
+
+    " Deserialize data (no save to database, just test for now)
+    lt_result = zcl_abapgit_data_factory=>get_deserializer( )->deserialize(
+      ii_config  = get_data_config( )
+      it_files   = get_files_remote( ) ).
+
     CLEAR: mt_local.
 
-    update_local_checksums( lt_updated_files ).
     update_last_deserialize( ).
     reset_status( ).
 
@@ -470,6 +486,7 @@ CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
   METHOD get_files_local.
 
     DATA lo_serialize TYPE REF TO zcl_abapgit_serialize.
+    DATA lt_languages TYPE zif_abapgit_definitions=>ty_languages.
 
     " Serialization happened before and no refresh request
     IF lines( mt_local ) > 0 AND mv_request_local_refresh = abap_false.
@@ -477,9 +494,14 @@ CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    lt_languages = zcl_abapgit_lxe_texts=>get_translation_languages(
+      iv_main_language  = get_dot_abapgit( )->get_main_language( )
+      it_i18n_languages = get_dot_abapgit( )->get_i18n_languages( ) ).
+
     CREATE OBJECT lo_serialize
       EXPORTING
-        iv_serialize_master_lang_only = ms_data-local_settings-serialize_master_lang_only.
+        iv_serialize_master_lang_only = ms_data-local_settings-serialize_master_lang_only
+        it_translation_langs          = lt_languages.
 
     rt_files = lo_serialize->files_local(
       iv_package        = get_package( )
@@ -541,6 +563,33 @@ CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
 
   METHOD get_package.
     rv_package = ms_data-package.
+  ENDMETHOD.
+
+
+  METHOD get_unsupported_objects_local.
+
+    DATA: lt_tadir           TYPE zif_abapgit_definitions=>ty_tadir_tt,
+          lt_supported_types TYPE zcl_abapgit_objects=>ty_types_tt.
+
+    FIELD-SYMBOLS: <ls_tadir>  LIKE LINE OF lt_tadir,
+                   <ls_object> LIKE LINE OF rt_objects.
+
+    lt_tadir = zcl_abapgit_factory=>get_tadir( )->read(
+                      iv_package            = ms_data-package
+                      iv_ignore_subpackages = ms_data-local_settings-ignore_subpackages
+                      iv_only_local_objects = ms_data-local_settings-only_local_objects
+                      io_dot                = get_dot_abapgit( ) ).
+
+    lt_supported_types = zcl_abapgit_objects=>supported_list( ).
+    LOOP AT lt_tadir ASSIGNING <ls_tadir>.
+      READ TABLE lt_supported_types WITH KEY table_line = <ls_tadir>-object TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0.
+        APPEND INITIAL LINE TO rt_objects ASSIGNING <ls_object>.
+        MOVE-CORRESPONDING <ls_tadir> TO <ls_object>.
+        <ls_object>-obj_type = <ls_tadir>-object.
+      ENDIF.
+    ENDLOOP.
+
   ENDMETHOD.
 
 
@@ -608,7 +657,9 @@ CLASS ZCL_ABAPGIT_REPO IMPLEMENTATION.
     mv_request_local_refresh = abap_true.
     reset_remote( ).
 
-    CLEAR mi_log.
+    IF iv_drop_log = abap_true.
+      CLEAR mi_log.
+    ENDIF.
 
     IF iv_drop_cache = abap_true.
       CLEAR mt_local.

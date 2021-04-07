@@ -28,7 +28,8 @@ CLASS zcl_abapgit_gui_page_sett_repo DEFINITION
     CONSTANTS:
       BEGIN OF c_id,
         dot             TYPE string VALUE 'dot',
-        master_language TYPE string VALUE 'master_language',
+        main_language   TYPE string VALUE 'main_language',
+        i18n_langs      TYPE string VALUE 'i18n_langs',
         starting_folder TYPE string VALUE 'starting_folder',
         folder_logic    TYPE string VALUE 'folder_logic',
         ignore          TYPE string VALUE 'ignore',
@@ -71,7 +72,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_SETT_REPO IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -117,10 +118,14 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
       iv_label       = 'Repository Settings (.abapgit.xml)'
       iv_hint        = 'Settings stored in root folder in .abapgit.xml file'
     )->text(
-      iv_name        = c_id-master_language
+      iv_name        = c_id-main_language
       iv_label       = 'Main Language'
       iv_hint        = 'Main language of repository (cannot be changed)'
       iv_readonly    = abap_true
+    )->text(
+      iv_name        = c_id-i18n_langs
+      iv_label       = 'Serialize Translations (experimental LXE approach)'
+      iv_hint        = 'Comma-separate 2-letter ISO language codes e.g. "DE,ES,..." - should not include main language'
     )->radio(
       iv_name        = c_id-folder_logic
       iv_default_value = zif_abapgit_dot_abapgit=>c_folder_logic-prefix
@@ -167,6 +172,7 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
   METHOD read_settings.
 
     DATA:
+      lo_dot          TYPE REF TO zcl_abapgit_dot_abapgit,
       ls_dot          TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit,
       lv_language     TYPE t002t-sptxt,
       lv_ignore       TYPE string,
@@ -178,7 +184,8 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
       <lv_ignore> TYPE string.
 
     " Get settings from DB
-    ls_dot = mo_repo->get_dot_abapgit( )->get_data( ).
+    lo_dot = mo_repo->get_dot_abapgit( ).
+    ls_dot = lo_dot->get_data( ).
 
     " Repository Settings
     SELECT SINGLE sptxt INTO lv_language FROM t002t
@@ -188,8 +195,11 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
     ENDIF.
 
     mo_form_data->set(
-      iv_key = c_id-master_language
+      iv_key = c_id-main_language
       iv_val = |{ ls_dot-master_language } ({ lv_language })| ).
+    mo_form_data->set(
+      iv_key = c_id-i18n_langs
+      iv_val = zcl_abapgit_lxe_texts=>convert_table_to_lang_string( lo_dot->get_i18n_languages( ) ) ).
     mo_form_data->set(
       iv_key = c_id-folder_logic
       iv_val = ls_dot-folder_logic ).
@@ -259,6 +269,11 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
 
     lo_dot->set_folder_logic( mo_form_data->get( c_id-folder_logic ) ).
     lo_dot->set_starting_folder( mo_form_data->get( c_id-starting_folder ) ).
+
+    lo_dot->set_i18n_languages(
+      zcl_abapgit_lxe_texts=>convert_lang_string_to_table(
+        iv_langs              = mo_form_data->get( c_id-i18n_langs )
+        iv_skip_main_language = lo_dot->get_main_language( ) ) ).
 
     " Remove all ignores
     lt_ignore = lo_dot->get_data( )-ignore.

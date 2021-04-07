@@ -15,7 +15,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_object_wdcc IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_OBJECT_WDCC IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -381,35 +381,41 @@ CLASS zcl_abapgit_object_wdcc IMPLEMENTATION.
                  ig_data =  ls_orig_config-relid ).
 
     lv_xml_string = zcl_abapgit_convert=>xstring_to_string_utf8( iv_data = lv_xml_xstring ).
-    TRY.
-        lv_xml_string = zcl_abapgit_xml_pretty=>print( iv_xml           = lv_xml_string
-                                                       iv_ignore_errors = abap_false ).
-      CATCH zcx_abapgit_exception.    "
-        zcx_abapgit_exception=>raise( 'Error Pretty Printing WDCC XML Content: ' && ms_item-obj_name ).
-    ENDTRY.
+    IF lv_xml_string IS NOT INITIAL.
+      TRY.
+          lv_xml_string = zcl_abapgit_xml_pretty=>print(
+            iv_xml           = lv_xml_string
+            iv_ignore_errors = abap_false ).
+        CATCH zcx_abapgit_exception.
+          zcx_abapgit_exception=>raise( 'Error Pretty Printing WDCC XML Content: ' && ms_item-obj_name ).
+      ENDTRY.
 
-    REPLACE FIRST OCCURRENCE
-      OF REGEX '<\?xml version="1\.0" encoding="[\w-]+"\?>'
-      IN lv_xml_string
-      WITH '<?xml version="1.0" encoding="utf-8"?>'.
-    ASSERT sy-subrc = 0.
+      REPLACE FIRST OCCURRENCE
+        OF REGEX '<\?xml version="1\.0" encoding="[\w-]+"\?>'
+        IN lv_xml_string
+        WITH '<?xml version="1.0" encoding="utf-8"?>'.
+      ASSERT sy-subrc = 0.
+    ENDIF.
 
     mo_files->add_string( iv_extra  = 'comp_config'
                           iv_ext    = 'xml'
                           iv_string = lv_xml_string ).
 
-    SELECT * FROM wdy_config_compt INTO TABLE lt_otr_texts WHERE config_id   = ls_orig_config-config_id
-                                                             AND config_type = ls_orig_config-config_type
-                                                             AND config_var  = ls_orig_config-config_var.
-
+    SELECT * FROM wdy_config_compt INTO TABLE lt_otr_texts
+      WHERE config_id   = ls_orig_config-config_id
+      AND config_type = ls_orig_config-config_type
+      AND config_var  = ls_orig_config-config_var
+      ORDER BY PRIMARY KEY.
     IF lt_otr_texts IS NOT INITIAL.
       io_xml->add( iv_name = 'OTR_TEXT'
                    ig_data = lt_otr_texts ).
     ENDIF.
 
-    SELECT * FROM wdy_config_datt INTO TABLE lt_cc_text WHERE config_id   = ls_orig_config-config_id
-                                                          AND config_type = ls_orig_config-config_type
-                                                          AND config_var  = ls_orig_config-config_var.
+    SELECT * FROM wdy_config_datt INTO TABLE lt_cc_text
+      WHERE config_id   = ls_orig_config-config_id
+      AND config_type = ls_orig_config-config_type
+      AND config_var  = ls_orig_config-config_var
+      ORDER BY PRIMARY KEY.
     IF lt_cc_text IS NOT INITIAL.
       io_xml->add( iv_name = 'DESCR_LANG'
                    ig_data = lt_cc_text ).

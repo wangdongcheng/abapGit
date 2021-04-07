@@ -8,9 +8,11 @@ INTERFACE zif_abapgit_dot_abapgit PUBLIC.
     END OF ty_requirement .
   TYPES:
     ty_requirement_tt TYPE STANDARD TABLE OF ty_requirement WITH DEFAULT KEY .
+
   TYPES:
     BEGIN OF ty_dot_abapgit,
       master_language              TYPE spras,
+      i18n_languages               TYPE zif_abapgit_definitions=>ty_languages,
       starting_folder              TYPE string,
       folder_logic                 TYPE string,
       ignore                       TYPE STANDARD TABLE OF string WITH DEFAULT KEY,
