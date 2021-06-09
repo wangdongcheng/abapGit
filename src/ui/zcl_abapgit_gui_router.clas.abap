@@ -44,13 +44,6 @@ CLASS zcl_abapgit_gui_router DEFINITION
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
         zcx_abapgit_exception .
-    METHODS remote_origin_manipulations
-      IMPORTING
-        !ii_event         TYPE REF TO zif_abapgit_gui_event
-      RETURNING
-        VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
-      RAISING
-        zcx_abapgit_exception .
     METHODS sap_gui_actions
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
@@ -251,7 +244,7 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
         CREATE OBJECT rs_handled-page TYPE zcl_abapgit_gui_page_db.
         rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
       WHEN zif_abapgit_definitions=>c_action-go_debuginfo.                   " Go debug info
-        CREATE OBJECT rs_handled-page TYPE zcl_abapgit_gui_page_debuginfo.
+        rs_handled-page  = zcl_abapgit_gui_page_debuginfo=>create( ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
       WHEN zif_abapgit_definitions=>c_action-go_settings.                    " Go global settings
         rs_handled-page  = zcl_abapgit_gui_page_sett_glob=>create( ).
@@ -459,9 +452,6 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
       WHEN zif_abapgit_definitions=>c_action-git_reset.                     " GIT Reset
         zcl_abapgit_services_git=>reset( lv_key ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
-      WHEN zif_abapgit_definitions=>c_action-git_checkout_commit.           " GIT Checkout commit
-        zcl_abapgit_services_git=>checkout_commit( lv_key ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
       WHEN zif_abapgit_definitions=>c_action-git_branch_create.             " GIT Create new branch
         zcl_abapgit_services_git=>create_branch( lv_key ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
@@ -548,30 +538,6 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD remote_origin_manipulations.
-
-    DATA lv_key TYPE zif_abapgit_persistence=>ty_repo-key.
-
-
-    lv_key = ii_event->query( )->get( 'KEY' ).
-
-    CASE ii_event->mv_action.
-      WHEN zif_abapgit_definitions=>c_action-repo_remote_attach.
-        zcl_abapgit_services_repo=>remote_attach( lv_key ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
-      WHEN zif_abapgit_definitions=>c_action-repo_remote_detach.
-        zcl_abapgit_services_repo=>remote_detach( lv_key ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
-      WHEN zif_abapgit_definitions=>c_action-repo_remote_change.
-        CREATE OBJECT rs_handled-page TYPE zcl_abapgit_gui_page_ch_remote
-          EXPORTING
-            iv_key = lv_key.
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
-    ENDCASE.
-
-  ENDMETHOD.
-
-
   METHOD repository_services.
 
     DATA:
@@ -629,6 +595,9 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
         rs_handled-state = get_state_settings( ii_event ).
       WHEN zif_abapgit_definitions=>c_action-repo_local_settings.             " Local repo settings
         rs_handled-page  = zcl_abapgit_gui_page_sett_locl=>create( lo_repo ).
+        rs_handled-state = get_state_settings( ii_event ).
+      WHEN zif_abapgit_definitions=>c_action-repo_remote_settings.            " Remote repo settings
+        rs_handled-page  = zcl_abapgit_gui_page_sett_remo=>create( lo_repo ).
         rs_handled-state = get_state_settings( ii_event ).
       WHEN zif_abapgit_definitions=>c_action-repo_background.                 " Repo background mode
         rs_handled-page  = zcl_abapgit_gui_page_sett_bckg=>create( lo_repo ).
@@ -690,8 +659,11 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_event_handler~on_event.
 
+    rs_handled = zcl_abapgit_exit=>get_instance( )->on_event( ii_event ).
 
-    rs_handled = general_page_routing( ii_event ).
+    IF rs_handled-state IS INITIAL.
+      rs_handled = general_page_routing( ii_event ).
+    ENDIF.
     IF rs_handled-state IS INITIAL.
       rs_handled = repository_services( ii_event ).
     ENDIF.
@@ -706,9 +678,6 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
     ENDIF.
     IF rs_handled-state IS INITIAL.
       rs_handled = abapgit_services_actions( ii_event ).
-    ENDIF.
-    IF rs_handled-state IS INITIAL.
-      rs_handled = remote_origin_manipulations( ii_event ).
     ENDIF.
     IF rs_handled-state IS INITIAL.
       rs_handled = sap_gui_actions( ii_event ).
@@ -729,6 +698,8 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
     DATA: lv_key  TYPE zif_abapgit_persistence=>ty_repo-key,
           lo_repo TYPE REF TO zcl_abapgit_repo,
           lv_path TYPE string,
+          lv_dest TYPE rfcdest,
+          lv_msg  TYPE c LENGTH 200,
           lv_xstr TYPE xstring.
 
     CONSTANTS:
@@ -740,13 +711,42 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
     lv_key = ii_event->query( )->get( 'KEY' ).
 
     CASE ii_event->mv_action.
-      WHEN zif_abapgit_definitions=>c_action-zip_import.                      " Import repo from ZIP
+      WHEN zif_abapgit_definitions=>c_action-zip_import                       " Import repo from ZIP
+        OR zif_abapgit_definitions=>c_action-rfc_compare.                     " Compare repo via RFC
+
         lo_repo = zcl_abapgit_repo_srv=>get_instance( )->get( lv_key ).
-        lv_path = zcl_abapgit_ui_factory=>get_frontend_services( )->show_file_open_dialog(
-          iv_title            = 'Import ZIP'
-          iv_extension        = 'zip'
-          iv_default_filename = '*.zip' ).
-        lv_xstr = zcl_abapgit_ui_factory=>get_frontend_services( )->file_upload( lv_path ).
+
+        IF ii_event->mv_action = zif_abapgit_definitions=>c_action-zip_import.
+          lv_path = zcl_abapgit_ui_factory=>get_frontend_services( )->show_file_open_dialog(
+            iv_title            = 'Import ZIP'
+            iv_extension        = 'zip'
+            iv_default_filename = '*.zip' ).
+          lv_xstr = zcl_abapgit_ui_factory=>get_frontend_services( )->file_upload( lv_path ).
+        ELSE.
+          lv_dest = zcl_abapgit_ui_factory=>get_popups( )->popup_search_help( 'RFCDES-RFCDEST' ).
+
+          IF lv_dest IS INITIAL.
+            rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
+            RETURN.
+          ENDIF.
+
+          CALL FUNCTION 'Z_ABAPGIT_SERIALIZE_PACKAGE'
+            DESTINATION lv_dest
+            EXPORTING
+              iv_package            = lo_repo->get_package( )
+              iv_folder_logic       = lo_repo->get_dot_abapgit( )->get_folder_logic( )
+              iv_main_lang_only     = lo_repo->get_local_settings( )-main_language_only
+            IMPORTING
+              ev_xstring            = lv_xstr
+            EXCEPTIONS
+              system_failure        = 1 MESSAGE lv_msg
+              communication_failure = 2 MESSAGE lv_msg
+              OTHERS                = 3.
+          IF sy-subrc <> 0.
+            zcx_abapgit_exception=>raise( |RFC import error: { lv_msg }| ).
+          ENDIF.
+        ENDIF.
+
         lo_repo->set_files_remote( zcl_abapgit_zip=>load( lv_xstr ) ).
         zcl_abapgit_services_repo=>refresh( lv_key ).
 

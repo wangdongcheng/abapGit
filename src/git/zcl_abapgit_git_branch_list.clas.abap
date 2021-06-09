@@ -127,7 +127,8 @@ CLASS zcl_abapgit_git_branch_list IMPLEMENTATION.
     ELSE.
 
       READ TABLE mt_branches INTO rs_branch
-        WITH KEY name = iv_branch_name.
+        WITH TABLE KEY name_key
+        COMPONENTS name = iv_branch_name.
       IF sy-subrc <> 0.
         zcx_abapgit_exception=>raise( |Branch { get_display_name( iv_branch_name )
           } not found. Use 'Branch' > 'Switch' to select a different branch| ).
@@ -145,11 +146,13 @@ CLASS zcl_abapgit_git_branch_list IMPLEMENTATION.
     lv_branch_name = iv_branch_name && '^{}'.
 
     READ TABLE mt_branches INTO rs_branch
-        WITH KEY name = lv_branch_name.
+        WITH TABLE KEY name_key
+        COMPONENTS name = lv_branch_name.
     IF sy-subrc <> 0.
 
       READ TABLE mt_branches INTO rs_branch
-        WITH KEY name = iv_branch_name.
+        WITH TABLE KEY name_key
+        COMPONENTS name = iv_branch_name.
       IF sy-subrc <> 0.
         zcx_abapgit_exception=>raise( 'Branch not found' ).
       ENDIF.
@@ -319,10 +322,7 @@ CLASS zcl_abapgit_git_branch_list IMPLEMENTATION.
   METHOD skip_first_pkt.
 
     DATA: lv_hex     TYPE x LENGTH 1,
-          lt_strings TYPE STANDARD TABLE OF string WITH DEFAULT KEY,
-          lv_str     TYPE string,
           lv_length  TYPE i.
-
 
 * channel
     ASSERT iv_data(2) = '00'.

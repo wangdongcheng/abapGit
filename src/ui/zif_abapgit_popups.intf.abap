@@ -4,17 +4,6 @@ INTERFACE zif_abapgit_popups
 
   TYPES:
     ty_sval_tt TYPE STANDARD TABLE OF sval WITH DEFAULT KEY .
-  TYPES:
-    BEGIN OF ty_popup, " TODO remove, use zif_abapgit_services_repo=>ty_repo_params instead
-      url              TYPE string,
-      package          TYPE devclass,
-      branch_name      TYPE string,
-      display_name     TYPE string,
-      folder_logic     TYPE string,
-      ign_subpkg       TYPE abap_bool,
-      master_lang_only TYPE abap_bool,
-      cancel           TYPE abap_bool,
-    END OF ty_popup .
 
   CONSTANTS c_new_branch_label TYPE string VALUE '+ create new ...' ##NO_TEXT.
 
@@ -49,18 +38,6 @@ INTERFACE zif_abapgit_popups
       VALUE(rs_branch)    TYPE zif_abapgit_definitions=>ty_git_branch
     RAISING
       zcx_abapgit_exception .
-  METHODS repo_popup
-    IMPORTING
-      !iv_url            TYPE string
-      !iv_package        TYPE devclass OPTIONAL
-      !iv_freeze_package TYPE abap_bool OPTIONAL
-      !iv_freeze_url     TYPE abap_bool OPTIONAL
-      !iv_title          TYPE clike DEFAULT 'New Online Project'
-      !iv_display_name   TYPE string OPTIONAL
-    RETURNING
-      VALUE(rs_popup)    TYPE ty_popup
-    RAISING
-      zcx_abapgit_exception ##NO_TEXT.
   METHODS popup_to_confirm
     IMPORTING
       !iv_titlebar              TYPE clike
@@ -96,10 +73,10 @@ INTERFACE zif_abapgit_popups
       !it_list               TYPE STANDARD TABLE
       !iv_title              TYPE lvc_title DEFAULT space
       !iv_header_text        TYPE csequence DEFAULT space
-      !iv_start_column       TYPE i DEFAULT 2
-      !iv_end_column         TYPE i DEFAULT 65
+      !iv_start_column       TYPE i DEFAULT 10
+      !iv_end_column         TYPE i DEFAULT 90
       !iv_start_line         TYPE i DEFAULT 8
-      !iv_end_line           TYPE i DEFAULT 20
+      !iv_end_line           TYPE i DEFAULT 25
       !iv_striped_pattern    TYPE abap_bool DEFAULT abap_false
       !iv_optimize_col_width TYPE abap_bool DEFAULT abap_true
       !iv_selection_mode     TYPE salv_de_constant DEFAULT if_salv_c_selection_mode=>multiple
